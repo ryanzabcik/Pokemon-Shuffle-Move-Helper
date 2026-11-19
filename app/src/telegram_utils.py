@@ -1,4 +1,5 @@
 from telegram import Bot, Update
+from telegram.error import InvalidToken
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 import threading
 import asyncio
@@ -13,14 +14,39 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from main import ImageSelectorApp
 
+log = log_utils.get_logger()
+
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 USER_ID = os.getenv("TELEGRAM_USER_ID", "")
 
 class TelegramBot:
     def __init__(self):
-        self.bot = Bot(token=BOT_TOKEN)
         self.root: "ImageSelectorApp" = None # type: ignore
-        self.application = Application.builder().token(BOT_TOKEN).build()
+        self.enabled = False
+        self.bot = None
+        self.application = None
+        self.loop = None
+        self.thread = None
+
+        if not BOT_TOKEN or not BOT_TOKEN.strip():
+            log.warning("TELEGRAM_BOT_TOKEN is not set; Telegram bot disabled.")
+            return
+
+        try:
+            self.bot = Bot(token=BOT_TOKEN)
+            self.application = Application.builder().token(BOT_TOKEN).build()
+        except InvalidToken as ex:
+            log.error(f"Invalid TELEGRAM_BOT_TOKEN; Telegram bot disabled: {ex}")
+            self.bot = None
+            self.application = None
+            return
+        except Exception as ex:
+            log.error(f"Failed to initialize Telegram bot; Telegram bot disabled: {ex}")
+            self.bot = None
+            self.application = None
+            return
+
+        self.enabled = True
 
         self.commands = [
             "disable_loop",
@@ -55,6 +81,8 @@ class TelegramBot:
         
 
     async def send_to_telegram(self, text):
+        if not self.enabled or not self.bot or not USER_ID:
+            return
         await self.bot.send_message(chat_id=USER_ID, text=text)
 
     async def handle_message(self, update: Update, context: CallbackContext):
@@ -154,6 +182,8 @@ class TelegramBot:
         self.loop.run_until_complete(self.application.run_polling()) # type: ignore
 
     def send_message(self, text):
+        if not self.enabled or not self.loop:
+            return
         asyncio.run_coroutine_threadsafe(self.send_to_telegram(text), self.loop)
 
 current_bot = TelegramBot()

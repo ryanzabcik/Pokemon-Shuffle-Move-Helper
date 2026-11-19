@@ -13,12 +13,26 @@ def update_adb_connection(reconfigure_screen):
     adb = adbutils.AdbClient(host="127.0.0.1", port=5037)
 
     # Kill the ADB server (optional, but sometimes helps)
-    adb.server_kill()
+    try:
+        adb.server_kill()
+    except Exception as ex:
+        log.warning(f"Failed to kill ADB server: {ex}")
 
-    # List connected devices
-    devices = adb.device_list()
+    # List connected devices (retry if the server is still restarting/closing)
+    try:
+        adb.device_list()
+    except Exception as ex:
+        log.warning(f"Initial ADB device_list failed: {ex}")
+
     time.sleep(5)
-    devices = adb.device_list()
+    devices = []
+    for attempt in range(3):
+        try:
+            devices = adb.device_list()
+            break
+        except Exception as ex:
+            log.warning(f"ADB device_list failed (attempt {attempt + 1}/3): {ex}")
+            time.sleep(1)
 
     try:
         devices.append(adb.device())
@@ -94,6 +108,7 @@ def adb_run_screen_size(skip_on_error=False):
     except:
         if skip_on_error:
             log.debug("Couldn't find ADB active connection")
+            return None
         update_adb_connection(reconfigure_screen=True)
         return adb_run_screen_size(skip_on_error=True)
 
