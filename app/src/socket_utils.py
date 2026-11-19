@@ -1,12 +1,15 @@
 import socket
 from pathlib import Path
 from src import custom_utils
+from src import log_utils
 
-socket_port = None
+log = log_utils.get_logger()
+
+socket_port = None #type: ignore
 PREFERENCES_PATH = Path.joinpath(Path.home(), "Shuffle-Move", "config", "preferences.txt")
 custom_utils.verify_shuffle_file(PREFERENCES_PATH)
 
-def load_socker_port():
+def load_socket_port():
     global socket_port
     try:
         with open(PREFERENCES_PATH, "r") as file:
@@ -18,28 +21,31 @@ def load_socker_port():
                 return
     except:
         pass
-    print(f"No SOCKET_PORT found in {PREFERENCES_PATH.as_posix()}")
+    log.error(f"No SOCKET_PORT found in {PREFERENCES_PATH.as_posix()}")
     socket_port = 54321
     return
     
 
-def loadNewBoard():
+def loadNewBoard(method="loadNewBoard"):
     global socket_port
     try:
         if not socket_port:
-            load_socker_port()
+            load_socket_port()
+        # log.debug("Making socket call to Shuffle Move")
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(5)
+            s.settimeout(50)
             s.connect(('localhost', socket_port))  # Use the same port as in the Java application
-            s.sendall(b'loadNewBoard\n')
-            result = s.recv(1024).decode('utf-8')
+            message = f"{method}\n".encode('utf-8')
+            s.sendall(message)
+            result = s.recv(10000).decode('utf-8')
             if not result:
-                print(f"Socket connected on port {socket_port} but without any response.")
+                log.error(f"Socket connected on port {socket_port} but without any response.")
             else:
-                print(f"Shuffle Move Result: {result}")
+                result = result.strip()
+                log.info(f"Shuffle Move Result: {result}")
             return result
     except:
-        print(f"Cant connect to the socket on port {socket_port}, check if Shuffle Move is opened or if the port is being used by another program")
+        log.error(f"Cant connect to the socket on port {socket_port}, check if Shuffle Move is opened or if the port is being used by another program")
         return ""
 
 def ping_shuffle_move():
@@ -50,4 +56,4 @@ def ping_shuffle_move():
         s.sendall(b'ping\n')
 
         result = s.recv(1024).decode('utf-8')
-        print(result)
+        log.info(result)

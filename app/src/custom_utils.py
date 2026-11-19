@@ -1,23 +1,73 @@
+from datetime import datetime
+from logging import config
 from pathlib import Path
 import cv2
 import numpy as np
-from src.classes import Match
-from typing import List
-from src import constants
+from src.classes import Match, Board
+from typing import Any, List
+from src import adb_utils, constants, custom_utils, config_utils, file_utils
 from PIL import Image
+import pyautogui
+import src.screen_utils
+import os
+import re
+from src import log_utils
+import time
+from src.screen_utils import get_screen
+from thefuzz import fuzz
+import io
+import math
+from src.execution_variables import current_run
+from src.sleep_utils import log
+from src.telegram_utils import current_bot
+import pandas as pd
+import sqlite3
 
-def find_matching_files(directory, prefix, suffix):
-    directory_path = Path(directory)
-    search_pattern1 = f"{prefix}_[0-9]*{suffix}"
-    search_pattern2 = f"{prefix}{suffix}"
-    matching_files = list(directory_path.glob(search_pattern1)) + list(directory_path.glob(search_pattern2))
-    return matching_files
+log = log_utils.get_logger()
+FROZEN_IMAGE = cv2.imread(Path(constants.ASSETS_PATH, "barrier.png").as_posix(), cv2.IMREAD_UNCHANGED)
+invalid_values = ["Wood", "Barrier", "Metal"]
+time_pattern = re.compile(r"\b(\d{1,2})\s*:\s*(\d{1,2})\b")
+mega_list: list[str] = []
 
 def resize_cv2_image(image, target_size):
     try:
         return cv2.resize(image, target_size)
     except:
         return None
+
+def resize_cv2_with_scale(image, scale_percent):
+    # Get the current dimensions of the image
+    height, width = image.shape[:2]
+
+    # Calculate the new dimensions
+    new_width = int(width * scale_percent / 100)
+    new_height = int(height * scale_percent / 100)
+
+    # Resize the image
+    resized_image = cv2.resize(image, (new_width, new_height))
+
+    return resized_image
+
+def resize_image_to_fit(image, screen_width, screen_height):
+    image_height, image_width = image.shape[:2]
+
+    # Calculate the aspect ratios
+    screen_aspect_ratio = screen_width / screen_height
+    image_aspect_ratio = image_width / image_height
+
+    # Determine which dimension to scale by
+    if screen_aspect_ratio > image_aspect_ratio:
+        # Scale by height
+        scale_factor = screen_height / image_height
+    else:
+        # Scale by width
+        scale_factor = screen_width / image_width
+
+    # Resize the image
+    resized_image = cv2.resize(image, None, fx=scale_factor, fy=scale_factor)
+
+    return resized_image
+
 
 def resize_and_save_np_image(image_path, np_image, image_size):
     resized = resize_cv2_image(np_image, image_size)
@@ -26,12 +76,7 @@ def resize_and_save_np_image(image_path, np_image, image_size):
     else:
         cv2.imwrite(image_path.as_posix(), resized)
 
-def open_and_resize_np_image(image_path, image_size):
-    if type(image_path) == str:
-        image_path = Path(image_path)
-    np_img = open_cv2_image(image_path.as_posix())
-    np_img = resize_cv2_image(np_img, image_size)
-    return np_img
+
 
 def open_cv2_image(image_path):
     np_img = cv2.imread(image_path)
@@ -46,6 +91,11 @@ def cv2_to_pil(cv2_image, image_size=None):
     if image_size:
         cv2_image = resize_cv2_image(cv2_image, image_size)
     return Image.fromarray(cv2.cvtColor(cv2_image, cv2.COLOR_RGB2BGR))
+
+def pil_to_cv2(pil_image):
+    return cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+
+
 
 def get_taskbar_size():
     try:
@@ -65,40 +115,11 @@ def get_taskbar_size():
     except:
         return 0
     
-def show_list_images(images):
-    concatenated_image = concatenate_list_images(images)
-    show_img(concatenated_image)
 
-def concatenate_list_images(images, blank_space=40):
-    max_height = max(image.shape[0] for image in images)
-
-    blank_square = create_blank_square(max_height, blank_space)
-    # Create new images with the maximum height
-    
-    new_images_test = insert_in_middle(images, blank_square)
-    new_images = [np.zeros((max_height, image.shape[1], 3), dtype=np.uint8) for image in new_images_test]
-
-    # Copy the content of the original images to the new images
-    for i, image in enumerate(new_images_test):
-        new_images[i][:image.shape[0], :, :] = image
-
-    # Concatenate all images side by side
-    return np.concatenate(new_images, axis=1)
 
 def show_img(cv2_img):
     cv2.imshow("", cv2_img)
     
-def create_blank_square(height, width):
-    return np.ones((height, width, 3), dtype=np.uint8) * 255
-
-def insert_in_middle(lst, new_value):
-    new_list = []
-    for index, item in enumerate(lst):
-        new_list.append(item)
-        if index+1 < len(lst):
-            new_list.append(new_value)
-    return new_list
-
 
 def sort_by_class_attribute(obj_list, attribute_name, reverse=False):
     try:
@@ -106,7 +127,7 @@ def sort_by_class_attribute(obj_list, attribute_name, reverse=False):
         sorted_list = sorted(obj_list, key=lambda x: getattr(x, attribute_name), reverse=reverse)
         return sorted_list
     except AttributeError:
-        print(f"Attribute '{attribute_name}' not found in the class.")
+        log.error(f"Attribute '{attribute_name}' not found in the class.")
         return obj_list
 
 def merge_cv2_images(img1, img2, spacing=10):
@@ -213,9 +234,53 @@ def make_match_image_comparison(result, match_list: List[Match]):
         final_image1 = concatenate_cv2_list_as_full_grid([match.board_icon for match in match_list])
         final_image2 = concatenate_cv2_list_as_full_grid([match.match_icon for match in match_list])
 
-        return concatenate_list_images([final_image1, final_image2])
+        return file_utils.concatenate_list_images([final_image1, final_image2])
     except:
-        return None
+        return np.zeros((100,100,3), dtype=np.uint8)
+
+def extract_result_idx(result):
+    try:
+       red = result.split(":")[0].split("->")[0].strip()
+       red_idx = coordinates_to_index(*red.split(","))
+       blue = result.split(":")[0].split("->")[1].strip()
+       blue_idx = coordinates_to_index(*blue.split(","))
+       if red == "0,0" or blue == "0,0":
+           return None, None
+       return red_idx, blue_idx
+    except:
+        return None, None
+
+def extract_result_position(result):
+    try:
+        result_str_list = result.split(":")[0].split("->")
+        if result_str_list[0] == "0,0" or result_str_list[1] == "0,0":
+           return None, None, None, None
+        red_row, red_column = [int(point) for point in result_str_list[0].strip().split(",")]
+        blue_row, blue_column = [int(point) for point in result_str_list[1].strip().split(",")]
+        return red_row, red_column, blue_row, blue_column
+    except:
+        return None, None, None, None
+
+def add_result_to_screen(result, original_screen_image):
+    try:
+        red_row, red_column, blue_row, blue_column = extract_result_position(result)
+
+        red_x0 = math.floor(get_screen().board_x + (get_screen().board_w * (red_column - 1)))
+        red_y0 = math.floor(get_screen().board_y + (get_screen().board_h * (red_row - 1)))
+        blue_x0 = math.floor(get_screen().board_x + (get_screen().board_w * (blue_column - 1)))
+        blue_y0 = math.floor(get_screen().board_y + (get_screen().board_h * (blue_row - 1)))
+
+        red_x1 = math.floor(red_x0 + get_screen().board_w)
+        red_y1 = math.floor(red_y0 + get_screen().board_h)
+        blue_x1 = math.floor(blue_x0 + get_screen().board_w)
+        blue_y1 = math.floor(blue_y0 + get_screen().board_h)
+        
+        new_screen_image = add_layer_on_position(original_screen_image, "red", red_x0, red_y0, red_x1, red_y1)
+        new_screen_image = add_layer_on_position(new_screen_image, "blue", blue_x0, blue_y0, blue_x1, blue_y1)
+
+        return new_screen_image
+    except:
+        return original_screen_image
 
 def update_match_with_result(result, match_list: List[Match]):
     try:
@@ -231,8 +296,16 @@ def update_match_with_result(result, match_list: List[Match]):
         red = None
         blue = None
 
-def coordinates_to_index(x, y, width=6):
-    return ((int(x) - 1) * width) + (int(y) - 1)
+def coordinates_to_index(row, column, width=6, start_at_1=True):
+    if start_at_1:
+        return ((int(row) - 1) * width) + (int(column) - 1)
+    else:
+        return ((int(row)) * width) + (int(column))
+
+def index_to_coordinates(index, width=6):
+    row = index // width + 1
+    columns = index % width + 1
+    return row, columns
 
 def add_layer(image, color):
     square_size = image.shape[0]
@@ -245,7 +318,20 @@ def add_layer(image, color):
         raise Exception("Wrong color")
     return cv2.addWeighted(image, 0.5, transparent_layer, 0.5, 0)
 
-FROZEN_IMAGE = cv2.imread(Path(constants.ASSETS_PATH, "frozen.png").as_posix(), cv2.IMREAD_UNCHANGED)
+def add_layer_on_position(image, color, x0, y0, x1, y1):
+    overlay = image.copy()
+    output = image.copy()
+    
+    alpha = 0.5  # Transparency factor
+    cv2.rectangle(overlay, (x0, y0), (x1, y1), (0, 0, 255), -1)  # Red color in BGR
+
+    if color == "red":
+        cv2.rectangle(overlay, (x0, y0), (x1, y1), (0, 0, 255), -1)  # Red color in BGR
+    elif color == "blue":
+        cv2.rectangle(overlay, (x0, y0), (x1, y1), (255, 0, 0), -1)  # Red color in BGR
+
+    # Blend the overlay with the original image
+    return cv2.addWeighted(overlay, alpha, output, 1 - alpha, 0, output)
 
 def add_transparent_image(background, foreground=FROZEN_IMAGE):
     foreground_resized = cv2.resize(foreground, (background.shape[1], background.shape[0]))
@@ -299,6 +385,520 @@ def get_next_filename(filepath):
 
     return path
 
+def get_next_filename_number_on_start(folder_path, filename="test.png"):
+    files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f)) and re.match(r'^\d+', f)]
+
+    # Extract sequence numbers from file names
+    sequence_numbers = [int(re.match(r'^(\d+)_', f).group(1)) for f in files] #type: ignore
+
+    # Get the next sequence number
+    next_sequence_number = max(sequence_numbers, default=0) + 1
+
+    # Create your new file name
+    new_file_name = f"{next_sequence_number:02d}_{filename}"
+    
+    return new_file_name
+
 def verify_shuffle_file(file_path: Path):
     if not file_path.exists():
-        print(f"File {file_path.as_posix()} not found")
+        log.error(f"File {file_path.as_posix()} not found")
+
+
+def get_center_positions_list(left_position, right_position):
+    
+    x0 = left_position[0]
+    y0 = left_position[1]
+    x1 = right_position[0]
+    y1 = right_position[1]
+
+    # Calculate the width and height of each sub-square
+    width = (x1 - x0) / 6
+    height = (y1 - y0) / 6
+    
+    # List to store the center points
+    center_points_list = []
+    
+    
+    # Iterate through each row and column
+    for i in range(6):
+        for j in range(6):
+            # Calculate the center point of the current sub-square
+            center_x = x0 + (j + 0.5) * width
+            center_y = y0 + (i + 0.5) * height
+            center_points_list.append((center_x, center_y))
+    
+    # Return the list of center points
+    return center_points_list
+
+
+def capture_screen_screenshot():
+    adb_board = config_utils.config_values.get("adb_board")
+    if adb_board:
+        return adb_utils.get_new_screenshot()
+    else:
+        return pyautogui.screenshot()
+
+
+def capture_board_screensot(save=True, return_type="cv2"):
+    adb_board = config_utils.config_values.get("adb_board")
+    if adb_board:
+        # adb_utils.get_screen_positions()
+        img = adb_utils.crop_board(adb_utils.get_new_screenshot())
+        if return_type == "cv2":
+            return img
+        else:
+            return custom_utils.cv2_to_pil(img)
+    else:
+        x0 = get_screen().board_top_left[0]
+        x1 = get_screen().board_bottom_right[0] - get_screen().board_top_left[0]
+        y0 = get_screen().board_top_left[1]
+        y1 = get_screen().board_bottom_right[1] - get_screen().board_top_left[1]
+        # log.debug(f"Screenshot at: {datetime.now()}")
+        img = pyautogui.screenshot(region=(x0, y0, x1, y1))        
+        if save:
+            img.save(constants.LAST_BOARD_IMAGE_PATH)
+        if return_type == "cv2":
+            return custom_utils.pil_to_cv2(img)
+        else:
+            return img
+
+def find_matches_of_3(mylist, target, also_mega=False):
+    matrix = np.array(mylist).reshape((6, 6))
+    matches = []
+    targets = []
+
+    targets.append(target)
+    if also_mega:
+        targets.append(f"{constants.MEGA_PREFIX}{target}")
+
+
+    # Check rows
+    for i, row in enumerate(matrix):
+        for j in range(len(row) - 2):
+            if row[j] in targets and row[j + 1] in targets and row[j + 2] in targets:
+                matches.append((i, j))
+                matches.append((i, j + 1))
+                matches.append((i, j + 2))
+
+    # Check columns
+    for i in range(len(matrix) - 2):
+        for j in range(len(matrix[0])):
+            if matrix[i][j] in targets and matrix[i + 1][j] in targets and matrix[i + 2][j] in targets:
+                matches.append((i, j))
+                matches.append((i + 1, j))
+                matches.append((i + 2, j))
+    results_idx = []
+    for position in matches:
+        results_idx.append(custom_utils.coordinates_to_index(position[0], position[1], start_at_1=False))
+    return results_idx
+
+def replace_all_3_matches_indices_and_air(mylist: List[Match], replace_match, current_run):
+    matrix = np.array(mylist).reshape((6,6))
+    matrix_index_list = []
+    matrix_air_index_list = []
+    ignore_mega = False
+    if custom_utils.is_tapper_active():
+        ignore_mega = True
+    for i in range(6):
+        for j in range(6):
+            value = matrix[i][j]
+            if value is None:
+                continue
+            if ignore_mega and value.name.startswith(constants.MEGA_PREFIX):
+                continue
+            if value == "Wood" or value == "Metal":
+                continue
+            elif value == "Air" or value == "Fog":
+                matrix_air_index_list.extend([(i, j)])
+                continue
+            # Check horizontal
+            if j <= 3 and matrix[i][j + 1] == value and matrix[i][j + 2] == value:
+                matrix_index_list.extend([(i, j), (i, j + 1), (i, j + 2)])
+            # Check vertical
+            if i <= 3 and matrix[i + 1][j] == value and matrix[i + 2][j] == value:
+                matrix_index_list.extend([(i, j), (i + 1, j), (i + 2, j)])
+    matrix_index_list = list(set(matrix_index_list))
+    for matrix_index in matrix_index_list:
+        index = coordinates_to_index(matrix_index[0], matrix_index[1], start_at_1=False)
+        mylist[index] = current_run.get_next_timed_fake_icon()
+    for matrix_index in matrix_air_index_list:
+        index = coordinates_to_index(matrix_index[0], matrix_index[1], start_at_1=False)
+        mylist[index] = current_run.get_next_timed_fake_icon()
+    return mylist
+
+def search_space_to_fit_mega(mylist: List[Match], target_value):
+    matrix = np.array(mylist).reshape((6,6))
+    cell_to_move_icon = None
+    cell_of_the_mega = None
+    cell_from_move_icon = None
+    for i in range(6):
+        if cell_to_move_icon:
+            break
+        for j in range(6):
+            if matrix[i][j] == target_value:
+                # Check horizontal combinations
+                if j <= 3:
+                    combination = [(i, j + 1), (i, j + 2)]
+                    if all(matrix[x][y] not in invalid_values for x, y in combination):
+                        cell_to_move_icon = combination[0]
+                        cell_of_the_mega = (i , j)
+                        break
+                if j >= 2:
+                    combination = [(i, j - 2), (i, j - 1)]
+                    if all(matrix[x][y] not in invalid_values for x, y in combination):
+                        cell_to_move_icon = combination[0]
+                        cell_of_the_mega = (i , j)
+                        break
+                if j >=1 and j <=5:
+                    combination = [(i, j - 1), (i, j + 1)]
+                    if all(matrix[x][y] not in invalid_values for x, y in combination):
+                        cell_to_move_icon = combination[0]
+                        cell_of_the_mega = (i , j)
+                        break
+                # Check vertical combinations
+                if i <= 3:
+                    combination = [(i, j), (i + 1, j), (i + 2, j)]
+                    if all(matrix[x][y] not in invalid_values for x, y in combination):
+                        cell_to_move_icon = combination[0]
+                        cell_of_the_mega = (i , j)
+                        break
+                if i >= 2:
+                    combination = [(i - 2, j), (i - 1, j), (i, j)]
+                    if all(matrix[x][y] not in invalid_values for x, y in combination):
+                        cell_to_move_icon = combination[0]
+                        cell_of_the_mega = (i , j)
+                        break
+                if i >=1 and i <=5:
+                    combination = [(i - 1, j), (i + 1, j)]
+                    if all(matrix[x][y] not in invalid_values for x, y in combination):
+                        cell_to_move_icon = combination[0]
+                        cell_of_the_mega = (i , j)
+                        break
+    for i in range(6):
+        if cell_from_move_icon:
+            break
+        for j in range(6):
+            if matrix[i][j] == target_value and (i, j) != cell_of_the_mega:
+                cell_from_move_icon = (i,j)
+                break
+    return cell_from_move_icon, cell_to_move_icon
+
+
+def split_list_to_dict(complete_list, interest_list):
+    result_dict = {key: [] for key in interest_list} #type: ignore
+    for idx, string in enumerate(complete_list):
+        if string not in interest_list:
+            continue
+        if string not in result_dict:
+            result_dict[string] = []
+        result_dict[string].append(idx)
+    return result_dict
+
+def find_slot_to_mega(current_board: Board):
+    #The idea of this one is when on timed stage sometimes there's actually no move to do
+    #So you need to move two icons do make it able to do a real move on the next play
+    #I try to do it by moving a "mega" icon close to another (when there's space also space for a third)  
+    from_matrix, to_matrix = search_space_to_fit_mega(current_board.match_sequence, current_board.mega_name)
+    from_row = from_matrix[0] + 1
+    from_column = from_matrix[1] + 1
+    to_row = to_matrix[0] + 1
+    to_column = to_matrix[1] + 1
+    formatted_result = f"{from_row},{from_column} -> {to_row},{to_column}:"
+    return formatted_result
+
+def load_file_as_list(file_path):
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+        lines = [line.strip() for line in lines]
+    return lines
+
+def find_similar_key(ocr_key, dictionary):
+    max_ratio = 70
+    closest_key = None
+    for key in dictionary.keys():
+        ratio = fuzz.ratio(ocr_key, key)
+        if ratio > max_ratio:
+            max_ratio = ratio
+            closest_key = key
+    return closest_key
+
+def timer_decorator(func):
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        log.debug(f"Function '{func.__name__}' took {end_time - start_time:.2f} seconds to run.")
+        return result
+    return wrapper
+
+def time_difference_in_seconds(start_time):
+    return time.time() - start_time
+
+def compress_image_and_save(cv2_img, save_path, max_bytes=150000, initial_quality=50):
+
+    pil_image = cv2_to_pil(cv2_img)
+
+    quality = initial_quality
+
+    # Loop para ajustar a qualidade da imagem até que ela atenda ao limite de tamanho
+    while quality > 6:
+    # Crie um buffer de memória para a imagem
+        buffered = io.BytesIO()
+
+        pil_image.save(buffered, format="JPEG", optimize=True, quality=quality)
+
+        # Verifique o tamanho do buffer
+        if len(buffered.getvalue()) <= max_bytes:
+            break  # A imagem atende ao limite de tamanho
+        else:
+            quality -= 5  # Reduza a qualidade e tente novamente
+    
+    pil_image.save(save_path, format="JPEG", optimize=True, quality=quality)
+
+def verify_or_update_png_path(path) -> Path:
+    if not path.exists() and path.suffix != ".png":
+        path = path.with_suffix(".png")
+    return path
+
+def add_red_marker(image_path, points_list, marker_radius=20, transparency=0.7):
+    # Load the image
+    image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+    
+    if image is None:
+        raise ValueError(f"Image not found at path: {image_path}")
+
+    # Check if image has an alpha channel
+    if image.shape[2] == 3:
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2BGRA)
+
+    for x, y in points_list:
+        # Create an overlay with the same size as the image
+        overlay = image.copy()
+
+        # Define the color and thickness of the marker (Red in BGR format)
+        marker_color = (0, 0, 255, int(255 * transparency))  # Red with alpha for transparency
+
+        # Draw a filled circle (marker) on the overlay
+        cv2.circle(overlay, (x, y), marker_radius, marker_color, -1)
+
+        # Blend the overlay with the original image
+        cv2.addWeighted(overlay, transparency, image, 1 - transparency, 0, image)
+
+    return image
+
+latest_time = datetime.now()
+
+def safe_convert_to_int(s: str, default=99999) -> int:
+    try:
+        return int(s)
+    except:
+        try:
+            numeric_string = re.sub(r'\D', '', s)
+            return int(numeric_string)
+        except:
+            return default
+
+
+def started_stage(stage_number, stage_text, stage, moves):
+    try:
+        log.debug("Executing started_stage_function")
+        current_run.survival_current_stage_info = {
+            "Stage Number": current_run.survival_mode_current_stage,
+            'Stage Text': stage_text,
+            "Stage Number Test": safe_convert_to_int(stage_text),
+            'Stage': stage,
+            'Starting Moves': safe_convert_to_int(moves),
+            'Start Time': datetime.now(),
+            'Start Time Text': datetime.now()
+        }
+    except:
+        log.error("Erro  na fase do survival")
+
+
+def ended_the_stage(won_stage=True, file_path='survival_mode_data.xlsx', sheet_name='Stage Data'):
+    try:
+        if not current_run.survival_mode_current_running and custom_utils.is_survival_mode():
+            current_run.survival_mode_current_running = True
+            current_run.survival_mode_current_id = datetime.now()
+            current_run.survival_mode_current_running_path = Path(constants.DEBUG_SURVIVAL_IMAGE_FOLDER, current_run.survival_mode_current_id.strftime('%Y_%m_%d_%H_%M'))
+ 
+        log.debug("Executing ended_the_stage function")
+        current_run.survival_current_stage_info["End Time"] = datetime.now()
+        current_run.survival_current_stage_info["Stage Time"] = int((current_run.survival_current_stage_info.get("End Time") - current_run.survival_current_stage_info.get("Start Time")).total_seconds()) #type: ignore
+        current_run.survival_current_stage_info["Global Time"] = int((current_run.survival_current_stage_info.get("End Time") - current_run.survival_mode_run_started_time).total_seconds() / 60) #type: ignore
+        current_run.survival_current_stage_info["won_stage"] = won_stage
+        
+        if won_stage and (current_run.survival_old_stage_info.get('Stage Number') == 60 or current_run.survival_old_stage_info.get('Stage Number Test') == 60):
+            last_stage = True
+        elif won_stage:
+            last_stage = False
+        else:
+            last_stage = True
+
+        if current_run.survival_old_stage_info:
+            if last_stage:
+                current_run.survival_old_stage_info['Used Moves'] = 0
+            else:
+                current_run.survival_old_stage_info['Used Moves'] = current_run.survival_old_stage_info.get('Starting Moves') - (current_run.survival_current_stage_info.get("Starting Moves") - 5) #type: ignore
+
+            old_stage_data = pd.DataFrame({
+                "id": [current_run.survival_mode_current_id],
+                "stage_number": [current_run.survival_old_stage_info.get('Stage Number')],
+                "stage_text": [current_run.survival_old_stage_info.get('Stage Text')],
+                "stage_number_test": [current_run.survival_old_stage_info.get('Stage Number Test')],
+                "stage": [current_run.survival_old_stage_info.get('Stage')],
+                "starting_moves": [current_run.survival_old_stage_info.get('Starting Moves')],
+                "moves": [current_run.survival_old_stage_info.get('Used Moves')],
+                "stage_time": [current_run.survival_old_stage_info.get('Stage Time')],
+                "accumulated_time": [current_run.survival_old_stage_info.get('Global Time')],
+                "start_time": [current_run.survival_old_stage_info.get('Start Time Text')],
+                "won_stage": won_stage,
+                "lost_stage": not won_stage,
+                "last_run_stage": last_stage,
+                "current_team": current_run.survival_mode_current_team
+            })
+            
+            # append_to_excel(file_path, sheet_name, old_stage_data)
+            append_to_sqlite("shuffle.sqlite3", "survival_mode", old_stage_data)
+        current_run.survival_old_stage_info = current_run.survival_current_stage_info
+        log.debug("Finished ended_the_stage function")
+    except:
+        log.error("Erro  na fase do survival")
+
+def append_to_excel(file_path, sheet_name, data):
+    try:
+        """Appends data to an Excel file."""
+        if os.path.exists(file_path):
+            with pd.ExcelWriter(file_path, mode='a', engine="openpyxl", if_sheet_exists="overlay") as writer:
+                data.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=writer.sheets[sheet_name].max_row)
+        else:
+            with pd.ExcelWriter(file_path, mode='w', engine="openpyxl") as writer:
+                data.to_excel(writer, sheet_name=sheet_name, index=False)
+    except Exception as ex:
+        log.error(f"Error appending to excel: {ex}")
+
+def append_to_sqlite(db_path, table_name, df: pd.DataFrame):
+    try:
+        """Appends data to an SQLite database."""
+        conn = sqlite3.connect(db_path)
+        
+        df.to_sql(table_name, conn, if_exists='append')
+        
+        conn.commit()
+        conn.close()
+
+        # ALTER TABLE survival_mode ADD COLUMN final_result INTEGER DEFAULT -1
+#         SELECT "Id", "Stage Number", "Stage", "Moves", "Stage Time (s)", "Current Team" from survival_mode
+# WHERE "Moves" > 5
+# ORDER BY "Moves" DESC;
+
+# SELECT "Id", "Stage Number", "Stage", "Starting Moves", "Moves", "Stage Time (s)", "Run Time (min)", "Won Stage", "Last Run Stage", "Current Team" from survival_mode
+# WHERE "Last Run Stage" = 1
+# ORDER BY ROWID DESC;
+    except Exception as ex:
+        log.error(f"Error with sqlite: {ex}")
+
+def search_mega_name(names_list):
+    global mega_list
+    for name in names_list:
+        if name in mega_list:
+            return name
+    return "-"
+
+def update_mega_list():
+    global mega_list
+    folder_path = constants.IMAGES_PATH
+    image_files = [f for f in os.listdir(folder_path) if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif")) and "mega_" in f.lower()]
+    for image_file in image_files:
+        if image_file.startswith(constants.MEGA_PREFIX):
+            path_pokemon_name = image_file.split(constants.MEGA_PREFIX)[1]
+            mega_list.append(path_pokemon_name)
+            mega_list.append(path_pokemon_name.replace(".png", ""))
+
+
+
+def is_timed_stage():
+    return config_utils.config_values.get("timed_stage")
+
+def is_survival_mode():
+    return config_utils.config_values.get("survival_mode") or current_run.current_stage == constants.SURVIVAL_MODE
+
+def is_meowth_stage():
+    return config_utils.config_values.get("meowth_37")
+
+def is_coin_stage():
+    return config_utils.config_values.get("coin_stage")
+
+def is_fast_swipe():
+    return config_utils.config_values.get("fast_swipe")
+
+def is_tapper_active():
+    return config_utils.config_values.get("tapper")
+
+def is_fake_barrier_active():
+    return config_utils.config_values.get("fake_barrier")
+
+def is_debug_mode_active():
+    return config_utils.config_values.get("debug_mode")
+
+def is_extra_debug_active():
+    return config_utils.config_values.get("extra_debug")
+
+def is_sleep_machine_enabled():
+    return config_utils.config_values.get("sleep_machine")
+
+def is_adb_move_enabled():
+    return config_utils.config_values.get("adb_move")
+
+def use_great_ball():
+    return config_utils.config_values.get("greatball")
+
+def is_stage_pause():
+    return config_utils.config_values.get("stage_pause")
+
+def is_check_drops_enabled():
+    return config_utils.config_values.get("check_drop")
+
+def use_mega_boosted_score():
+    return config_utils.config_values.get("mega_boosted_score")
+
+def is_puzzle_stage():
+    return config_utils.config_values.get("is_puzzle_stage")
+
+def paused_survival_mode():
+    return config_utils.config_values.get("pause_survival")
+
+def is_expand_mega():
+    return config_utils.config_values.get("expand_mega")
+
+def is_escalation_battle():
+    return config_utils.config_values.get("escalation_battle")
+
+def save_extra_debug_image(points_list, suffix):
+    os.makedirs(constants.DEBUG_EXTRA_IMAGE_FOLDER, exist_ok=True)
+    if is_survival_mode() and current_run.survival_mode_current_running_path:
+        newpath = Path(current_run.survival_mode_current_running_path, f"{str(current_run.survival_mode_current_stage)}_{current_run.survival_mode_current_stage_name}")
+        os.makedirs(newpath, exist_ok=True)
+        image_path = Path(newpath, f"{datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')[:-3]}_{suffix}.jpeg")
+    else:
+        image_path = Path(constants.DEBUG_EXTRA_IMAGE_FOLDER, f"{datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')[:-3]}_{suffix}.jpeg")
+    image_with_markers = custom_utils.add_red_marker(constants.LAST_SCREEN_IMAGE_PATH, points_list)
+    custom_utils.compress_image_and_save(image_with_markers, image_path.as_posix(), initial_quality=6)
+
+
+def send_telegram_message(text):
+    try:
+        log.debug(f"Sending message to telegram> {text}")
+        current_bot.send_message(text)
+    except Exception as ex:
+        log.error(f"Error on sending telegram message - {ex}")
+
+def convert_position(pos):
+    try:
+        column = ord(pos[0].upper()) - ord('A') + 1 
+        row = int(pos[1])
+        return f"{row},{column}"
+    except:
+        return pos
+
+update_mega_list()

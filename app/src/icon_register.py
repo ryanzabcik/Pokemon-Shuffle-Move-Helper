@@ -8,11 +8,19 @@ import customtkinter
 import cv2
 
 from src.classes import MatchResult
+from src import log_utils
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from main import ImageSelectorApp
+
+log = log_utils.get_logger()
 
 custom_downscale = (96,96)
 
 class IconRegister(customtkinter.CTkToplevel):
-    def __init__(self, root = None, title="Icon Register", forced_board_image=None):
+    def __init__(self, root: "ImageSelectorApp" = None, title="Icon Register", forced_board_image=None): #type: ignore
          
         super().__init__()
         self.root = root
@@ -20,7 +28,7 @@ class IconRegister(customtkinter.CTkToplevel):
         self.geometry("250x250")
         self.selected_image = None
         self.forced_board_image = forced_board_image
-        self.image_widgets = []
+        self.image_widgets = [] #type: ignore
         self.scrollable_frame = customtkinter.CTkScrollableFrame(master=self)
         self.scrollable_frame.pack(expand=True, fill="both")
         self.create_widgets()
@@ -75,7 +83,7 @@ class IconRegister(customtkinter.CTkToplevel):
 
 class PokemonIconSelector(customtkinter.CTkToplevel):
      
-    def __init__(self, root = None, selected_image=None):
+    def __init__(self, root: "ImageSelectorApp" = None, selected_image=None): #type: ignore
          
         super().__init__()
         self.title("Select The Pokemon That the New Icon will be Saved")
@@ -135,9 +143,8 @@ class PokemonIconSelector(customtkinter.CTkToplevel):
 
 def remove_icon(image_path):
     if os.path.exists(image_path):
-        # print(f"Teria removido {image_path}")
         os.remove(image_path)
-        print(f"Eliminado o Arquivo: {image_path}")
+        log.info(f"Eliminado o Arquivo: {image_path}")
 
 def save_new_icon(image, image_name, is_barrier):
     if is_barrier:
