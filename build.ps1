@@ -1,0 +1,24 @@
+Write-Host "Removing existing zip files, build, and dist folders..."
+Remove-Item -Path "Shuffle_Move_Helper*.zip" -ErrorAction SilentlyContinue
+if (Test-Path "dist") { Remove-Item -Path "dist" -Recurse -Force }
+if (Test-Path "build") { Remove-Item -Path "build" -Recurse -Force }
+
+Write-Host "Executing pyinstaller..."
+pyinstaller main.spec
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "PyInstaller failed with exit code $LASTEXITCODE"
+    exit $LASTEXITCODE
+}
+
+Write-Host "Copying assets folder to dist..."
+New-Item -ItemType Directory -Path "dist\main\assets" -Force | Out-Null
+Copy-Item -Path "assets\*" -Destination "dist\main\assets" -Recurse -Force
+
+Write-Host "Extracting Version Number..."
+$version = (python -c "from app.src.version import current_version; print(current_version)").Trim()
+
+Write-Host "Zipping contents of dist\main..."
+Compress-Archive -Path "dist\main\*" -DestinationPath "Shuffle_Move_Helper_$version.zip" -Force
+
+Write-Host "Done."
+Pause
