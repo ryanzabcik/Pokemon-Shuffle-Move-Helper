@@ -27,43 +27,42 @@ class TeamLoader(tk.Toplevel):
 
 
 
-        # Read the file and parse each line into a tuple
-        with open( Path.joinpath(Path.home(), "Shuffle-Move", "config", "teamsData.txt"), "r") as file:
+        # Read the file and parse each line into a TeamData
+        with open(Path.joinpath(Path.home(), "Shuffle-Move", "config", "teamsData.txt"), "r") as file:
             lines = file.readlines()
 
-        self.teams: list[TeamData] = []
+        self.all_teams: list[TeamData] = []
         for line in lines:
             parts = line.strip().split()
-            if not parts[0] == "TEAM":
+            if len(parts) < 3 or parts[0] != "TEAM":
                 continue
             team_name = parts[1]
-            if team_name not in stages_fixed_list:
-                continue
             icons_str = parts[2]
             for item in exception_list:
                 icons_str = icons_str.replace(item, f"_{item}")
             icons = icons_str.split(",")
-            #Append mega:
-            try:
+            # Append mega:
+            if len(parts) > 4 and parts[4] != "-":
                 mega_name = f"Mega_{parts[4]}"
                 icons.append(mega_name)
-            except:
-                pass
-            self.teams.append(TeamData(team_name, icons))
+            self.all_teams.append(TeamData(team_name, icons))
             if team_name == "SP_084":
-                self.teams.append(TeamData("MEOWTH COIN MANIA", icons))
-            
-        self.teams.sort(key=lambda x: stages_fixed_list.index(x.stage))
+                self.all_teams.append(TeamData("MEOWTH COIN MANIA", icons))
 
-        # self.teams = sorted(self.teams, key=custom_sort)
+        self.teams: list[TeamData] = []
 
-        # Create the main Tkinter window
-        # root.title("Team List")
+        self.filter_var = tk.BooleanVar(value=False)
+        self.filter_checkbox = tk.Checkbutton(
+            self,
+            text="Filter to default stages only",
+            variable=self.filter_var,
+            command=self.populate_listbox,
+        )
+        self.filter_checkbox.grid(row=0, column=1, columnspan=2, sticky="w", padx=5, pady=(10, 5))
 
         # Create a Tkinter list with the second element of each tuple
         self.listbox = tk.Listbox(self, selectmode=tk.SINGLE)
-        for team in self.teams:
-            self.listbox.insert(tk.END, team.stage)
+        self.populate_listbox()
 
         scrollbar = tk.Scrollbar(self, orient="vertical")
         scrollbar.config(command=self.listbox.yview)
@@ -81,6 +80,21 @@ class TeamLoader(tk.Toplevel):
         
         self.configure_initial_geometry()
 
+    def populate_listbox(self):
+        """Populate the team listbox, optionally filtering to stages_fixed_list."""
+        if self.filter_var.get():
+            self.teams = [t for t in self.all_teams if t.stage in stages_set]
+            self.teams.sort(key=lambda x: stages_fixed_list.index(x.stage))
+        else:
+            self.teams = list(self.all_teams)
+            self.teams.sort(
+                key=lambda x: (0, stages_fixed_list.index(x.stage), "")
+                if x.stage in stages_set
+                else (1, 0, x.stage.lower())
+            )
+        self.listbox.delete(0, tk.END)
+        for team in self.teams:
+            self.listbox.insert(tk.END, team.stage)
 
     def configure_initial_geometry(self):
         self.update()
