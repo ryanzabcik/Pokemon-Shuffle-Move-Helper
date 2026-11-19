@@ -173,7 +173,7 @@ def update_teams_file(names_list, mega_name, extra_supports_list, stage):
     return update_teams_file_with_move_string(move_string, stage)
 
 def update_teams_file_with_move_string(move_string, stage_name):
-    team_stage_string = f"TEAM {stage_name}"
+    team_stage_string = f"TEAM {stage_name} "
     with open(TEAMS_DATA_PATH, 'r') as file:
         lines = file.readlines()
 
@@ -186,7 +186,9 @@ def update_teams_file_with_move_string(move_string, stage_name):
             found = True
             break
     if not found:
-        lines[-1] = move_string
+        if lines and not lines[-1].endswith("\n"):
+            lines[-1] += "\n"
+        lines.append(move_string)
     # Write the modified content back to the file
     with open(TEAMS_DATA_PATH, 'w') as file:
         file.writelines(lines)
