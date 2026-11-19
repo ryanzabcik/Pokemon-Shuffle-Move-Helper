@@ -15,7 +15,13 @@ New-Item -ItemType Directory -Path "dist\main\assets" -Force | Out-Null
 Copy-Item -Path "assets\*" -Destination "dist\main\assets" -Recurse -Force
 
 Write-Host "Extracting Version Number..."
-$version = (python -c "from app.src.version import current_version; print(current_version)").Trim()
+$versionContent = Get-Content -Path "app\src\version.py" -Raw
+if ($versionContent -match '(?m)^\s*current_version\s*=\s*["'']([^"'']+)["'']') {
+    $version = $Matches[1].Trim()
+} else {
+    Write-Error "Failed to extract current_version from app\src\version.py"
+    exit 1
+}
 
 Write-Host "Zipping contents of dist\main..."
 Compress-Archive -Path "dist\main\*" -DestinationPath "Shuffle_Move_Helper_$version.zip" -Force
