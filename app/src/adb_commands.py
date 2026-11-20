@@ -5,6 +5,7 @@ import adbutils
 import time
 
 log = log_utils.get_logger()
+_active_display_id = None
 
 def update_adb_connection(reconfigure_screen):
     log.info("Starting update_adb_connection")
@@ -92,9 +93,38 @@ def adb_run_tap(x ,y, source, skip_on_error=False, skip_extra_debug=False):
         adb_run_tap(x ,y, source, skip_on_error=True, skip_extra_debug=skip_extra_debug)
 
 
-def adb_run_screenshot(skip_on_error=False):
+def _is_black_image(pil_img):
+    if pil_img is None:
+        return True
+    extrema = pil_img.getextrema()
+    if isinstance(extrema[0], tuple):
+        return all(lo == 0 and hi == 0 for lo, hi in extrema)
+    return extrema == (0, 0)
+
+
+def _get_display_ids():
     try:
-        return current_run.adb_device.screenshot() #type: ignore
+        output = current_run.adb_device.shell("dumpsys SurfaceFlinger --display-id") #type: ignore
+        return [int(d) for d in re.findall(r"Display\s+(\d+)", output)]
+    except Exception as ex:
+        log.debug(f"Failed to query display IDs: {ex}")
+        return []
+
+
+def adb_run_screenshot(skip_on_error=False):
+    global _active_display_id
+    try:
+        img = current_run.adb_device.screenshot(display_id=_active_display_id) #type: ignore
+        if _is_black_image(img):
+            for did in _get_display_ids():
+                if did == _active_display_id:
+                    continue
+                candidate = current_run.adb_device.screenshot(display_id=did) #type: ignore
+                if not _is_black_image(candidate):
+                    _active_display_id = did
+                    log.info(f"Switched ADB screenshot display_id to {did}")
+                    return candidate
+        return img
     except:
         if skip_on_error:
             return
