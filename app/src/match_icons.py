@@ -500,7 +500,6 @@ def start_from_helper(pokemon_list: list[Pokemon], has_barriers, root: "ImageSel
         log.debug(f"Starting a new {source} execution")
         icons_list = load_icon_classes(pokemon_list, has_barriers)
         current_screen_image = adb_utils.get_new_screenshot()
-        can_swipe = is_swipe_enabled(source)
 
         current_run.is_combo_active = False
         
@@ -513,7 +512,7 @@ def start_from_helper(pokemon_list: list[Pokemon], has_barriers, root: "ImageSel
                 return result
         if current_run.first_move and (custom_utils.is_survival_mode() or custom_utils.is_escalation_battle()):
             current_screen_image = adb_utils.get_new_screenshot()
-        can_swipe = can_swipe and not forced_swipe_skip and is_swipe_enabled(source)
+        can_swipe = not forced_swipe_skip and is_swipe_enabled(source)
         verify_drops_logic(current_screen_image)
         if not can_swipe and (custom_utils.is_meowth_stage() or not custom_utils.is_tapper_active()):
             return MatchResult()
@@ -537,12 +536,19 @@ def start_from_helper(pokemon_list: list[Pokemon], has_barriers, root: "ImageSel
             if restart_loop:
                 return MatchResult()
 
-        if can_swipe and custom_utils.safe_convert_to_int(current_board.moves_left, 0) > 0:
+        moves_left_int = custom_utils.safe_convert_to_int(current_board.moves_left, -1)
+        if moves_left_int == -1:
+            log.warning(f"Could not parse moves_left '{current_board.moves_left}', assuming moves remain")
+        if can_swipe and (moves_left_int > 0 or moves_left_int == -1):
             swiped = adb_utils.execute_play(result, current_board, source)
             if source == "loop" and (custom_utils.is_survival_mode() or custom_utils.is_fast_swipe()) and swiped and not custom_utils.is_tapper_active():
                 time.sleep(2)
             if custom_utils.is_debug_mode_active() and swiped:
                 save_debug_objects(result, match_list, source == "manual")
+        elif not can_swipe:
+            log.debug("Skipping swipe: can_swipe is False")
+        else:
+            log.debug(f"Skipping swipe: moves_left={current_board.moves_left} (parsed={moves_left_int})")
 
 
 

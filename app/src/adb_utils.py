@@ -58,7 +58,8 @@ def execute_play(result, board_results, source):
         if result and adb_move:
             timed_play = custom_utils.is_timed_stage()
             wrong_board = "Wrong Board" in result
-            zero_result = "0,0" in result
+            red_row, red_column, blue_row, blue_column = custom_utils.extract_result_position(result)
+            zero_result = red_row is None or red_row == 0 or red_column == 0 or blue_row == 0 or blue_column == 0
             if timed_play and (wrong_board or zero_result) and not current_run.last_execution_swiped:
                 log.debug("Runing find_slot_to_mega crazy function")
                 new_result = custom_utils.find_slot_to_mega(board_results)
@@ -66,10 +67,10 @@ def execute_play(result, board_results, source):
                 log.debug(f"Changing result to: {new_result}")
                 result = new_result
                 wrong_board = False
-                zero_result = False
+                red_row, red_column, blue_row, blue_column = custom_utils.extract_result_position(result)
+                zero_result = red_row is None or red_row == 0 or red_column == 0 or blue_row == 0 or blue_column == 0
             if not wrong_board and not zero_result:
                 current_run.bad_board_count = 0
-                red_row, red_column, blue_row, blue_column = custom_utils.extract_result_position(result)
 
                 from_x = math.floor(get_screen().board_x + (get_screen().board_w * red_column) - (get_screen().board_w / 2))
                 from_y = math.floor(get_screen().board_y + (get_screen().board_h * red_row) - (get_screen().board_w / 2))
@@ -79,12 +80,14 @@ def execute_play(result, board_results, source):
                 #The Idea of this one is to move not to the center of the cell, but a little more to the "end" of it, to
                 #increase the chances that the swipe input will move to the correct cell and not one before it.
                 new_to_x, new_to_y = move_second_point(from_x, from_y, to_x, to_y, get_screen().board_w/2.5, get_screen().board_h/2.5)
-                adb_run_swipe(from_x, from_y, new_to_x, new_to_y, 350, source)
-                current_run.last_swipe_timer = time.time()
-                current_run.last_execution_swiped = True
-                return True
+                if adb_run_swipe(from_x, from_y, new_to_x, new_to_y, 350, source):
+                    current_run.last_swipe_timer = time.time()
+                    current_run.last_execution_swiped = True
+                    return True
             else:
                 current_run.bad_board_count+= 1
+        elif not adb_move:
+            log.debug("Skipping execute_play: adb_move is disabled")
     except Exception as ex:
         log.error(f"Error on execute_play: {ex}")
     return False
@@ -387,17 +390,30 @@ def run_capture_logic_test(original_image, source):
         log.error(f"Erro: {ex}")
         pass
 
+_sift = cv2.SIFT_create() #type: ignore
+_sift_template_cache = {}
+
+def _get_template_sift(icon_path):
+    cached = _sift_template_cache.get(icon_path)
+    if cached is not None:
+        return cached
+    template = cv2.imread(icon_path)
+    template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+    kp1, des1 = _sift.detectAndCompute(template_gray, None)
+    cached = (template_gray, kp1, des1)
+    _sift_template_cache[icon_path] = cached
+    return cached
+
 def has_icon_match(original_image, icon_path, source, position="CompleteScreen", extra_timeout=1.0, click=True, min_point=10, debug=False, double_checked=False, log_not_found=False, click_type="tap"):
     try:
         r = get_screen().get_position(position)
         img = original_image.copy()
         img = img[r[1]:r[3], r[0]:r[2]]
-        template = cv2.imread(icon_path)
+        template_gray, kp1, des1 = _get_template_sift(icon_path)
+        if debug:
+            template_gray = template_gray.copy()
         image_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
-        sift = cv2.SIFT_create() #type: ignore
-        kp1, des1 = sift.detectAndCompute(template_gray,None)
-        kp2, des2 = sift.detectAndCompute(image_gray,None)
+        kp2, des2 = _sift.detectAndCompute(image_gray, None)
         MIN_MATCH_COUNT = min_point
         FLANN_INDEX_KDTREE = 1
         index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
@@ -538,6 +554,8 @@ def get_end_stage_coins(original_image):
 
 def get_moves_left(original_image):
     moves = get_label(original_image, "MovesLeft")
+    if not any(ch.isdigit() for ch in moves):
+        moves = get_label(original_image, "MovesLeft", config="--psm 7 -c tessedit_char_whitelist=0123456789:")
     if ":" in moves:
         _, seconds = process_time(moves)
         seconds = int(seconds)

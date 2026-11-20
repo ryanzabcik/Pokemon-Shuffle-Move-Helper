@@ -65,16 +65,18 @@ def adb_run_swipe(from_x, from_y, to_x, to_y, delay, source, skip_on_error=False
     try:
         if source == "loop" and not current_run.is_loop_active:
             log.info("Skipping Swipe Because Loop Was Deactivated")
-            return
+            return False
         log.debug(f"Swiping at: {from_x} {from_y} {to_x} {to_y} {delay}")
         current_run.adb_device.shell(f"input swipe {from_x} {from_y} {to_x} {to_y} {delay}") #type: ignore
         if not skip_extra_debug and custom_utils.is_extra_debug_active():
             custom_utils.save_extra_debug_image([[from_x, from_y], [to_x, to_y]], "swipe")
-    except:
+        return True
+    except Exception as ex:
+        log.warning(f"adb_run_swipe failed (skip_on_error={skip_on_error}): {ex}")
         if skip_on_error:
-            return
+            return False
         update_adb_connection(reconfigure_screen=True)
-        adb_run_swipe(from_x, from_y, to_x, to_y, delay, source, skip_on_error=True, skip_extra_debug=skip_extra_debug)
+        return adb_run_swipe(from_x, from_y, to_x, to_y, delay, source, skip_on_error=True, skip_extra_debug=skip_extra_debug)
 
 
 def adb_run_tap(x ,y, source, skip_on_error=False, skip_extra_debug=False):

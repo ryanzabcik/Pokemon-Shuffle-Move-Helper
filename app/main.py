@@ -850,8 +850,8 @@ class ImageSelectorApp():
             current_run.clear_survival_variables()
             return
         else:
-            self.execute_board_analysis_threaded(source="loop")
             current_run.is_loop_active = True
+            self.execute_board_analysis_threaded(source="loop")
             if current_run.thread_sleep_timer:
                 log.debug(f"Thread is locked for {current_run.thread_sleep_timer} seconds, waiting to return the loop.")
                 self.master.after(current_run.thread_sleep_timer * 1000, self.control_loop_function)                
