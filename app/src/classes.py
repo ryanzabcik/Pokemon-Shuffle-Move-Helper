@@ -152,6 +152,7 @@ class Board():
 class Screen():
     
     loaded: bool = True
+    resolution: str = ""
     resolution_dict: dict
     board_top_left: tuple
     board_bottom_right: tuple
@@ -160,7 +161,8 @@ class Screen():
     board_w: float
     board_h: float
     
-    def __init__(self, resolution_dict={}):
+    def __init__(self, resolution_dict={}, resolution=""):
+        self.resolution = resolution
         self.mydict = resolution_dict
         board = resolution_dict.get("Board")
         if not board:

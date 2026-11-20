@@ -2,7 +2,7 @@ import os
 import math
 import cv2
 from src import constants, icon_register, sleep_utils
-from src.adb_commands import adb_run_screenshot, adb_run_swipe, adb_run_tap, update_adb_connection
+from src.adb_commands import adb_run_screenshot, adb_run_swipe, adb_run_tap, configure_screen_for_resolution, update_adb_connection
 from src.execution_variables import current_run
 import numpy as np
 import math
@@ -24,6 +24,11 @@ log = log_utils.get_logger()
 def get_new_screenshot(local_save=True):
     try:
         pil_screenshot = adb_run_screenshot()
+        if pil_screenshot is not None:
+            w, h = pil_screenshot.size
+            res = f"{w}x{h}"
+            if not get_screen().loaded or get_screen().resolution != res:
+                configure_screen_for_resolution(res)
         img = custom_utils.pil_to_cv2(pil_screenshot)
         if local_save:
             cv2.imwrite(constants.LAST_SCREEN_IMAGE_PATH, img)
@@ -553,6 +558,9 @@ def get_current_score(original_image):
 
 def get_label(original_image, label, config=""):
     r = get_screen().get_position(label)
+    if r is None:
+        log.warning(f"Position '{label}' not found for resolution '{get_screen().resolution}' (loaded={get_screen().loaded})")
+        return ""
     return get_label_with_tuple(original_image, r, config)
 
 def get_label_with_tuple(original_image, r, config=""):

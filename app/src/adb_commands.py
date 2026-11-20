@@ -113,11 +113,21 @@ def adb_run_screen_size(skip_on_error=False):
         return adb_run_screen_size(skip_on_error=True)
 
 
+def configure_screen_for_resolution(resolution):
+    resolution = re.sub(r"\s+", "", resolution)
+    if resolution in constants.RESOLUTIONS:
+        screen_utils.update_screen(constants.RESOLUTIONS[resolution], resolution=resolution)
+        log.info(f"Configured screen resolution: {resolution}")
+        return True
+    log.error(f"Couldn't load screen resolution: '{resolution}' is not in constants.RESOLUTIONS")
+    return False
+
+
 def configure_screen():
     try:
         response = current_run.adb_device.shell("wm size") #type: ignore
         resolution = re.findall(r"\b\d{2,4}\s*x\s*\d{2,4}\b", response)[0] #type: ignore
-        screen_utils.update_screen(constants.RESOLUTIONS[resolution])
+        configure_screen_for_resolution(resolution)
     except Exception as ex:
         log.error(f"Couldn't load screen resolution: {ex}")
         pass
