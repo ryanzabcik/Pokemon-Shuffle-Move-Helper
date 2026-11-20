@@ -23,6 +23,14 @@ if ($versionContent -match '(?m)^\s*current_version\s*=\s*["'']([^"'']+)["'']') 
     exit 1
 }
 
+Write-Host "Extracting Git SHA..."
+$gitSha = (git rev-parse --short HEAD 2>$null)
+if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($gitSha)) {
+    $version = "${version}_$($gitSha.Trim())"
+} else {
+    Write-Warning "Failed to get git SHA; building without SHA in zip filename."
+}
+
 Write-Host "Zipping contents of dist\main..."
 Compress-Archive -Path "dist\main\*" -DestinationPath "Shuffle_Move_Helper_$version.zip" -Force
 
