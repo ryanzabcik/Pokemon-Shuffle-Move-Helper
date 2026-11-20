@@ -102,10 +102,11 @@ def _is_black_image(pil_img):
     return extrema == (0, 0)
 
 
-def _get_display_ids():
+def _get_display_indices():
     try:
         output = current_run.adb_device.shell("dumpsys SurfaceFlinger --display-id") #type: ignore
-        return [int(d) for d in re.findall(r"Display\s+(\d+)", output)]
+        ids = re.findall(r"Display\s+\d+", output)
+        return list(range(len(ids)))
     except Exception as ex:
         log.debug(f"Failed to query display IDs: {ex}")
         return []
@@ -116,16 +117,17 @@ def adb_run_screenshot(skip_on_error=False):
     try:
         img = current_run.adb_device.screenshot(display_id=_active_display_id) #type: ignore
         if _is_black_image(img):
-            for did in _get_display_ids():
+            for did in _get_display_indices():
                 if did == _active_display_id:
                     continue
                 candidate = current_run.adb_device.screenshot(display_id=did) #type: ignore
                 if not _is_black_image(candidate):
                     _active_display_id = did
-                    log.info(f"Switched ADB screenshot display_id to {did}")
+                    log.info(f"Switched ADB screenshot display_id index to {did}")
                     return candidate
         return img
-    except:
+    except Exception as ex:
+        log.warning(f"adb_run_screenshot failed: {ex}")
         if skip_on_error:
             return
         update_adb_connection(reconfigure_screen=True)
