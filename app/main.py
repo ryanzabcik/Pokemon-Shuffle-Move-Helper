@@ -34,7 +34,7 @@ from src.discord_utils import discord_bot, discord_thread
 
 log = log_utils.get_logger()
 warnings.filterwarnings("ignore", category=UserWarning, message="CTkButton Warning: Given image is not CTkImage but*")
-from viztracer.decorator import trace_and_save
+# from viztracer.decorator import trace_and_save
 
 customtkinter.set_appearance_mode("dark")  # Modes: "System" (standard), "Dark", "Light"
 # customtkinter.set_appearance_mode("light")
