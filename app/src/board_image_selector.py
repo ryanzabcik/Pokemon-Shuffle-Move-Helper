@@ -130,6 +130,7 @@ class PokemonIconSelector(tk.Toplevel):
             ExtraIconSelector(root=self.root, selected_image = image_name, action=self.action)
         else:
             save_new_icon(self.root.board_image_selector.selected_image, image_name, self.root.board_image_selector.folder)
+            self.root.clear_icons_cache()
         self.root.reveal_or_hide_barrier_img()
         self.destroy()
 

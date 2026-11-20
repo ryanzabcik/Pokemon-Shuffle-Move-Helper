@@ -968,8 +968,11 @@ class ImageSelectorApp():
                 image = Image.open(image_path)
                 image.thumbnail((50, 50))
                 if not config_utils.config_values.get("fake_barrier"):
-                    image2_path = Path(constants.IMAGES_BARRIER_PATH, label.cget("text"))
-                    if os.path.exists(image2_path):
+                    image2_path = Path(constants.IMAGES_BARRIER_PATH, label_text)
+                    if not os.path.exists(image2_path):
+                        matching_barriers = src.file_utils.find_matching_files(constants.IMAGES_BARRIER_PATH, Path(label_text).stem, ".png")
+                        image2_path = matching_barriers[0] if matching_barriers else None
+                    if image2_path and os.path.exists(image2_path):
                         image2 = Image.open(image2_path)
                     else:
                         image2 = Image.open(r"assets\x.png")
