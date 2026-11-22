@@ -704,6 +704,17 @@ class ImageSelectorApp():
             checkbox_mega.pack(padx=(5, 0), anchor="center")
             selected_image_frame.megaed = False
             selected_image_frame.checkbox_mega = checkbox_mega
+            mega_widget_name = f"{constants.MEGA_PREFIX}{selected_image_frame.name}"
+            if any(w[0].master.name == mega_widget_name for w in self.get_selected_images_widgets_list()):
+                checkbox_mega.select()
+                selected_image_frame.megaed = True
+
+        if selected_file.startswith(constants.MEGA_PREFIX):
+            base_name = selected_file[len(constants.MEGA_PREFIX):]
+            for w in self.get_selected_images_widgets_list():
+                if w[0].master.name == base_name and hasattr(w[0].master, "checkbox_mega"):
+                    w[0].master.checkbox_mega.select()
+                    w[0].master.megaed = True
 
 
         if self.frame3_1_top_1_2_var_control_barrier.get() and not skip_barrier:
@@ -728,14 +739,19 @@ class ImageSelectorApp():
             selected_image_frame.pokemon.stage_added = False
 
     def checkbox_mega_click(self, checkbox, selected_image_frame):
+        self.clear_icons_cache()
         for widget in self.get_selected_images_widgets_list():
             if widget[0].master.name.startswith(constants.MEGA_PREFIX):
                 widget[0].master.destroy()
                 continue
             if hasattr(widget[0].master, "megaed") and widget[0].master.name != selected_image_frame.name:
                 widget[0].master.checkbox_mega.deselect()
+                widget[0].master.megaed = False
         if checkbox.get():
+            selected_image_frame.megaed = True
             self.insert_image_widget(f"{constants.MEGA_PREFIX}{selected_image_frame.name}")
+        else:
+            selected_image_frame.megaed = False
         return
 
     def insert_extra_images_tooltip(self, image_path, selected_image_label):
@@ -770,6 +786,18 @@ class ImageSelectorApp():
                 pass
         
     def remove_selected_image(self, frame, image_path):
+        self.clear_icons_cache()
+        if frame.name.startswith(constants.MEGA_PREFIX):
+            base_name = frame.name[len(constants.MEGA_PREFIX):]
+            for widget in self.get_selected_images_widgets_list():
+                if widget[0].master.name == base_name and hasattr(widget[0].master, "checkbox_mega"):
+                    widget[0].master.checkbox_mega.deselect()
+                    widget[0].master.megaed = False
+        elif hasattr(frame, "megaed") and frame.megaed:
+            mega_name = f"{constants.MEGA_PREFIX}{frame.name}"
+            for widget in self.get_selected_images_widgets_list():
+                if widget[0].master.name == mega_name:
+                    widget[0].master.destroy()
         frame.destroy()
         # Remove the image from the selected images list
 
@@ -858,11 +886,16 @@ class ImageSelectorApp():
                 return
 
     def extract_pokemon_list(self, can_expand_megas=True) -> list[Pokemon]:
-        expand_megas = False
+        selected_widgets = self.get_selected_images_widgets_list()
+        has_explicit_mega = any(
+            hasattr(w[0].master, "pokemon")
+            and not w[0].master.pokemon.disabled
+            and w[0].master.name.startswith(constants.MEGA_PREFIX)
+            for w in selected_widgets
+        )
+        expand_megas = can_expand_megas and custom_utils.is_expand_mega() and not has_explicit_mega
         pokemons_list = []
-        if can_expand_megas and custom_utils.is_expand_mega():
-            expand_megas = True
-        for image_widgets in self.get_selected_images_widgets_list():
+        for image_widgets in selected_widgets:
             if hasattr(image_widgets[0].master, "pokemon"):
                 pokemon: Pokemon = image_widgets[0].master.pokemon
                 pokemons_list.append(pokemon)

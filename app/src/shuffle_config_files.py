@@ -74,28 +74,16 @@ def get_team_from_config_file_line(line, expand_megas) -> list[Pokemon]:
     return final_team
 
 def update_shuffle_move_files(current_board: Board, source=None, stage=None):
-    names_list = []
-    barrier_list = []
     mega_activated = MEGA_NOT_ACTIVATED
-    mega_name = "-"
-
-    for name in current_board.sequence_names_list:
-        if "Barrier_" in name:
-            name = name.split("Barrier_")[1]
-            barrier_list.append("true")
-        else:
-            barrier_list.append("false")
-        if constants.MEGA_PREFIX in name:
-            new_name = name.split(constants.MEGA_PREFIX)[1]
-            names_list.append(new_name)
-            mega_activated = MEGA_ACTIVATED
-            mega_name = new_name
-        else:
-            names_list.append(name)
 
     names_list, barrier_list, mega_name = process_pokemon_names_list(current_board.sequence_names_list)
     complete_names_list, _, forced_mega_name = process_pokemon_names_list(current_board.original_complete_names_list)
-    if mega_name == "-" and custom_utils.is_expand_mega():
+    mega_candidates = {
+        name.split(constants.MEGA_PREFIX, 1)[1]
+        for name in current_board.original_complete_names_list
+        if constants.MEGA_PREFIX in name
+    }
+    if mega_name == "-" and len(mega_candidates) > 1 and custom_utils.is_expand_mega():
         forced_mega_name = custom_utils.search_mega_name(current_board.sequence_names_list)
     current_board.barrier_list = barrier_list
     if mega_name == "-":
@@ -160,7 +148,7 @@ def load_stages_dict():
 def process_pokemon_names_list(original_names_list):
     names_list = []
     barrier_list = []
-    mega_name = "-"
+    mega_counts = {}
 
     for name in original_names_list:
         if "Barrier_" in name:
@@ -171,9 +159,10 @@ def process_pokemon_names_list(original_names_list):
         if constants.MEGA_PREFIX in name:
             new_name = name.split(constants.MEGA_PREFIX)[1]
             names_list.append(new_name)
-            mega_name = new_name
+            mega_counts[new_name] = mega_counts.get(new_name, 0) + 1
         else:
-            names_list.append(name)    
+            names_list.append(name)
+    mega_name = max(mega_counts, key=mega_counts.get) if mega_counts else "-"
     return names_list, barrier_list, mega_name
 
 def update_current_stage(current_stage):
