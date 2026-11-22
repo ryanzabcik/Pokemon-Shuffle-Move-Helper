@@ -1099,7 +1099,9 @@ class ImageSelectorApp():
 
     def on_press(self, key):
         try:
-            if key == keyboard.Key.f3:  # Check if the key is F3
+            if key == keyboard.Key.f1:
+                self.frame3_1_top_1_4_switch.toggle()
+            elif key == keyboard.Key.f3:  # Check if the key is F3
                 self.frame3_1_top_1_1_switch_control_loop.toggle()
             elif key == keyboard.Key.f2:
                     current_run.clear_stage_variables(keep_id=True)
