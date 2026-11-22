@@ -609,11 +609,17 @@ def find_slot_to_mega(current_board: Board):
     formatted_result = f"{from_row},{from_column} -> {to_row},{to_column}:"
     return formatted_result
 
+def read_text_lines(file_path):
+    try:
+        with open(file_path, 'r', encoding="utf-8") as file:
+            return file.readlines()
+    except UnicodeDecodeError:
+        with open(file_path, 'r', encoding="cp1252") as file:
+            return file.readlines()
+
 def load_file_as_list(file_path):
-    with open(file_path, 'r', encoding="utf-8") as file:
-        lines = file.readlines()
-        lines = [line.strip() for line in lines]
-    return lines
+    lines = read_text_lines(file_path)
+    return [line.strip() for line in lines]
 
 def find_similar_key(ocr_key, dictionary):
     max_ratio = 70

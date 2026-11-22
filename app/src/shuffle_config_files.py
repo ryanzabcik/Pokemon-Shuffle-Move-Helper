@@ -30,8 +30,7 @@ custom_utils.verify_shuffle_file(GRADING_MODES_PATH)
 def get_current_stage_and_team(expand_megas=False):
 
     stage_name = "NONE"
-    with open(BOARD_PATH, 'r', encoding="utf-8") as file:
-        lines = file.readlines()
+    lines = custom_utils.read_text_lines(BOARD_PATH)
     for line in lines:
         if "STAGE" in line:
             stage_name = line.split(" ")[-1].strip()
@@ -42,8 +41,7 @@ def get_team_from_stage_name(stage_name, expand_megas=False):
     if stage_name == constants.SURVIVAL_MODE:
         return get_team_from_config_file_line(constants.SURVIVAL_TEAM_STRING, expand_megas)
     current_stage_string = f"TEAM {stage_name}"
-    with open(TEAMS_DATA_PATH, 'r', encoding="utf-8") as file:
-        lines = file.readlines()
+    lines = custom_utils.read_text_lines(TEAMS_DATA_PATH)
     for i, line in enumerate(lines):
         if line.lower().startswith(current_stage_string.lower()):
             return get_team_from_config_file_line(line.strip(), expand_megas)
@@ -135,14 +133,13 @@ def get_stage_shuffle_move_id(stage_name, get_stage_name=False):
 
 def load_stages_dict():
     stage_dict = {}
-    with open(STAGES_PATH, 'r', encoding="utf-8") as file:
-        for line in file:
-            if line.startswith('STAGE'):
-                words = line.strip().split()
-                if len(words) >= 3:
-                    key, value = words[2], words[1]
-                    if key not in stage_dict:
-                        stage_dict[key] = value
+    for line in custom_utils.read_text_lines(STAGES_PATH):
+        if line.startswith('STAGE'):
+            words = line.strip().split()
+            if len(words) >= 3:
+                key, value = words[2], words[1]
+                if key not in stage_dict:
+                    stage_dict[key] = value
     return stage_dict
 
 def process_pokemon_names_list(original_names_list):
@@ -166,8 +163,7 @@ def process_pokemon_names_list(original_names_list):
     return names_list, barrier_list, mega_name
 
 def update_current_stage(current_stage):
-    with open(BOARD_PATH, 'r', encoding="utf-8") as file:
-        lines = file.readlines()
+    lines = custom_utils.read_text_lines(BOARD_PATH)
     for i, line in enumerate(lines):
         if line.startswith("STAGE"):
             # Replace the line
@@ -187,8 +183,7 @@ def update_preferences(current_score=0, moves_left=5, escalation_stage_number=No
         preferences["INTEGER ESCALATION_LEVEL"] = escalation_stage_number
 
     # Read existing lines from the file
-    with open(PREFERENCES_PATH, 'r', encoding="utf-8") as file:
-        lines = file.readlines()
+    lines = custom_utils.read_text_lines(PREFERENCES_PATH)
 
     # Flag to check if any lines were updated
     lines_updated = False
@@ -260,8 +255,7 @@ def update_teams_file(names_list, mega_name, extra_supports_list, stage):
 
 def update_teams_file_with_move_string(move_string, stage_name):
     team_stage_string = f"TEAM {stage_name} "
-    with open(TEAMS_DATA_PATH, 'r', encoding="utf-8") as file:
-        lines = file.readlines()
+    lines = custom_utils.read_text_lines(TEAMS_DATA_PATH)
 
     found = False
     # Find the line with the specified prefix
@@ -302,8 +296,7 @@ def update_gradingModes_file(source, mega_activated, current_board):
     prefix_to_replace = f"STRING CURRENT_MODE"
     new_line = f"STRING CURRENT_MODE {strategy}\n"
     has_modifications = False
-    with open(GRADING_MODES_PATH, 'r', encoding="utf-8") as file:
-        lines = file.readlines()
+    lines = custom_utils.read_text_lines(GRADING_MODES_PATH)
 
     for i, line in enumerate(lines):
         if line.startswith(prefix_to_replace):
