@@ -66,8 +66,9 @@ def adb_run_swipe(from_x, from_y, to_x, to_y, delay, source, skip_on_error=False
         if source == "loop" and not current_run.is_loop_active:
             log.info("Skipping Swipe Because Loop Was Deactivated")
             return False
+        display_arg = f"-d {_active_display_id} " if _active_display_id is not None else ""
         log.debug(f"Swiping at: {from_x} {from_y} {to_x} {to_y} {delay} (display_id={_active_display_id})")
-        output = current_run.adb_device.shell(f"input swipe {from_x} {from_y} {to_x} {to_y} {delay}") #type: ignore
+        output = current_run.adb_device.shell(f"input {display_arg}swipe {from_x} {from_y} {to_x} {to_y} {delay}") #type: ignore
         if output and str(output).strip():
             log.warning(f"adb_run_swipe shell output: {str(output).strip()}")
             return False
@@ -87,8 +88,9 @@ def adb_run_tap(x ,y, source, skip_on_error=False, skip_extra_debug=False):
         if source == "loop" and not current_run.is_loop_active:
             log.info("Skipping Tap Because Loop Was Deactivated")
             return
+        display_arg = f"-d {_active_display_id} " if _active_display_id is not None else ""
         log.debug(f"Tapping at: {x}, {y} (display_id={_active_display_id})")
-        output = current_run.adb_device.shell(f"input tap {x} {y}") #type: ignore
+        output = current_run.adb_device.shell(f"input {display_arg}tap {x} {y}") #type: ignore
         if output and str(output).strip():
             log.warning(f"adb_run_tap shell output: {str(output).strip()}")
         if not skip_extra_debug and custom_utils.is_extra_debug_active():
