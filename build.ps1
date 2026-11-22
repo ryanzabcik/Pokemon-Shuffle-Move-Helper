@@ -35,4 +35,3 @@ Write-Host "Zipping contents of dist\main..."
 Compress-Archive -Path "dist\main\*" -DestinationPath "Shuffle_Move_Helper_$version.zip" -Force
 
 Write-Host "Done."
-Pause
