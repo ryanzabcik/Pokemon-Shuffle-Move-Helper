@@ -79,15 +79,20 @@ def _get_input_display_id():
             if not id_m:
                 continue
             did = int(id_m.group(1))
-            state_m = re.search(r"mState=(\w+)", blk)
+            state_m = re.search(r"\bmState=(ON|OFF|DOZE)\b", blk)
             state = state_m.group(1) if state_m else ""
             res_m = re.search(r"(\d{3,4})\s*x\s*(\d{3,4})", blk)
             res = f"{res_m.group(1)}x{res_m.group(2)}" if res_m else ""
-            displays.append((did, state, res))
+            if res or state:
+                displays.append((did, state, res))
         if displays:
             log.info(f"ADB displays (id, state, res): {displays} (target_res={target_res})")
             for did, state, res in displays:
                 if state == "ON" and target_res and res == target_res:
+                    _input_display_id = did
+                    return _input_display_id
+            for did, state, res in displays:
+                if target_res and res == target_res:
                     _input_display_id = did
                     return _input_display_id
             for did, state, _ in displays:
@@ -198,6 +203,8 @@ def adb_run_screen_size(skip_on_error=False):
 
 
 def configure_screen_for_resolution(resolution):
+    global _input_display_id
+    _input_display_id = None
     resolution = re.sub(r"\s+", "", resolution)
     if resolution in constants.RESOLUTIONS:
         screen_utils.update_screen(constants.RESOLUTIONS[resolution], resolution=resolution)
