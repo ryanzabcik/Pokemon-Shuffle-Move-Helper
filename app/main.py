@@ -17,6 +17,7 @@ from CTkToolTip import CTkToolTip
 from src.classes import MatchResult, Pokemon
 import src.file_utils
 from src.icon_register import IconRegister
+from src.responsive_layout import ResponsiveFlowFrame
 from src import embed
 from src import version
 from src import splash
@@ -53,7 +54,7 @@ class ImageSelectorApp():
         
         self.overlay = None
         self.appview = customtkinter.CTkFrame(self.master)
-        self.appview.pack(expand=1, fill=tk.X, pady=0, padx=0, anchor="nw")
+        self.appview.pack(side=tk.TOP, expand=False, fill=tk.X, pady=0, padx=0, anchor="nw")
 
         self.create_left_app_screen()
         self.create_right_app_screen()
@@ -75,8 +76,8 @@ class ImageSelectorApp():
         discord_thread.start()
 
     def create_tab_menu(self):
-        self.tabview = customtkinter.CTkTabview(self.master, height=100)
-        self.tabview.pack(expand=1, fill=tk.X, pady=0, padx=0, anchor="nw")
+        self.tabview = customtkinter.CTkTabview(self.master, height=100, command=self._on_tab_changed)
+        self.tabview.pack(side=tk.TOP, expand=False, fill=tk.X, pady=0, padx=0, anchor="nw")
         
         self.tab1 = self.tabview.add("Configurations")
         self.tab2 = self.tabview.add("Icons")
@@ -84,6 +85,7 @@ class ImageSelectorApp():
         self.tab3 = self.tabview.add("Execute")
         self.tabview._segmented_button.grid(sticky="W")
         self.tabview.pack_propagate(True)
+        self._tab_flows = {}
         self.tab_button_style = {
             'compound': 'top',
             'width': 0,
@@ -104,17 +106,28 @@ class ImageSelectorApp():
         self.create_tab_4()
         
         self.tabview.set("Execute")
+        self._on_tab_changed()
+
+    def _on_tab_changed(self):
+        current_tab = self.tabview.get()
+        flow = self._tab_flows.get(current_tab)
+        if flow is not None:
+            flow._schedule_reflow()
 
         
     def create_tab_1(self):
-        frame1_1 = customtkinter.CTkFrame(self.tab1, fg_color="transparent")
-        frame1_1_top = customtkinter.CTkFrame(frame1_1, fg_color="transparent")
+        tab1_flow = ResponsiveFlowFrame(self.tab1)
+        tab1_flow.pack(fill=tk.X, expand=True)
+        self._tab_flows["Configurations"] = tab1_flow
+
+        frame1_1 = customtkinter.CTkFrame(tab1_flow, fg_color=("gray86", "gray17"), corner_radius=6)
+        frame1_1_top = ResponsiveFlowFrame(frame1_1)
         frame1_1_bottom = customtkinter.CTkFrame(frame1_1, fg_color="transparent")
-        
-        frame1_1.pack(side=tk.LEFT, expand=False, fill=tk.Y, anchor=tk.W)
-        frame1_1_top.pack(side=tk.TOP)
-        frame1_1_bottom.pack(side=tk.BOTTOM)
-        ttk.Separator(self.tab1, orient='vertical').pack(side=tk.LEFT, fill='y', anchor=tk.W)
+        frame1_1._flow_child = frame1_1_top
+
+        frame1_1_top.pack(side=tk.TOP, fill=tk.X, padx=4, pady=(4, 0))
+        frame1_1_bottom.pack(side=tk.BOTTOM, pady=(0, 2))
+        tab1_flow.add_item(frame1_1, padx=4, pady=2)
 
         customtkinter.CTkLabel(frame1_1_bottom, text="Mouse Positions").pack(side=tk.BOTTOM, anchor=tk.S)
 
@@ -131,17 +144,16 @@ class ImageSelectorApp():
         CTkToolTip(btn1_1_4, delay=0.5, message="Reload the ADB Coordinates")
 
         # btn1_1_1.pack(side=tk.LEFT)
-        btn1_1_2.pack(side=tk.LEFT)
-        btn1_1_3.pack(side=tk.LEFT)
-        btn1_1_4.pack(side=tk.LEFT)
+        frame1_1_top.add_item(btn1_1_2, padx=2, pady=2)
+        frame1_1_top.add_item(btn1_1_3, padx=2, pady=2)
+        frame1_1_top.add_item(btn1_1_4, padx=2, pady=2)
 
-        frame1_2 = customtkinter.CTkFrame(self.tab1, fg_color="transparent")
+        frame1_2 = customtkinter.CTkFrame(tab1_flow, fg_color=("gray86", "gray17"), corner_radius=6)
         frame1_2_top = customtkinter.CTkFrame(frame1_2, fg_color="transparent")
         frame1_2_bottom = customtkinter.CTkFrame(frame1_2, fg_color="transparent")
-        frame1_2.pack(side=tk.LEFT, expand=False, fill=tk.Y, anchor=tk.W)
-        frame1_2_top.pack(side=tk.TOP)
-        frame1_2_bottom.pack(side=tk.BOTTOM)
-        ttk.Separator(self.tab1, orient='vertical').pack(side=tk.LEFT, fill='y', anchor=tk.W)
+        frame1_2_top.pack(side=tk.TOP, padx=4, pady=(4, 0))
+        frame1_2_bottom.pack(side=tk.BOTTOM, pady=(0, 2))
+        tab1_flow.add_item(frame1_2, padx=4, pady=2)
         
         customtkinter.CTkLabel(frame1_2_bottom, text="Execution").pack(side=tk.BOTTOM, anchor=tk.S)
         
@@ -171,20 +183,22 @@ class ImageSelectorApp():
         # customtkinter.CTkLabel(frame1_2_top_2, text="Move Strategy").pack(side=tk.BOTTOM, anchor=tk.W)
         customtkinter.CTkLabel(frame1_2_top_2, text="Stage Hearts").pack(side=tk.BOTTOM, anchor=tk.W)
 
-        frame1_3 = customtkinter.CTkFrame(self.tab1, fg_color="transparent")
-        frame1_3_top = customtkinter.CTkFrame(frame1_3, fg_color="transparent")
+        frame1_3 = customtkinter.CTkFrame(tab1_flow, fg_color=("gray86", "gray17"), corner_radius=6)
+        frame1_3_top = ResponsiveFlowFrame(frame1_3)
         frame1_3_bottom = customtkinter.CTkFrame(frame1_3, fg_color="transparent")
-        frame1_3.pack(side=tk.LEFT, expand=False, fill=tk.Y, anchor=tk.W)
-        frame1_3_top.pack(side=tk.TOP)
-        frame1_3_bottom.pack(side=tk.BOTTOM)
-        ttk.Separator(self.tab1, orient='vertical').pack(side=tk.LEFT, fill='y', anchor=tk.W)
+        frame1_3._flow_child = frame1_3_top
+        frame1_3_top.pack(side=tk.TOP, fill=tk.X, padx=4, pady=(4, 0))
+        frame1_3_bottom.pack(side=tk.BOTTOM, pady=(0, 2))
+        tab1_flow.add_item(frame1_3, padx=4, pady=2)
         customtkinter.CTkLabel(frame1_3_bottom, text="Other").pack(side=tk.BOTTOM, anchor=tk.S)
 
-        customtkinter.CTkButton(frame1_3_top, text="Save Screenshot", command=lambda: self.save_screenshot(), image=icon, **self.tab_button_style).pack(side=tk.LEFT)
+        btn1_3_1 = customtkinter.CTkButton(frame1_3_top, text="Save Screenshot", command=lambda: self.save_screenshot(), image=icon, **self.tab_button_style)
+        frame1_3_top.add_item(btn1_3_1, padx=2, pady=2)
 
         self.current_team_ctkentry = customtkinter.CTkEntry(frame1_3_top, placeholder_text=config_utils.config_values.get("survival_team", ""))
-        self.current_team_ctkentry.pack(side=tk.LEFT)
-        customtkinter.CTkButton(frame1_3_top, text="Save Team", command=self.update_survival_team, image=self.get_icon("plus"), **self.tab_button_style).pack(side=tk.LEFT)
+        frame1_3_top.add_item(self.current_team_ctkentry, padx=4, pady=8)
+        btn1_3_2 = customtkinter.CTkButton(frame1_3_top, text="Save Team", command=self.update_survival_team, image=self.get_icon("plus"), **self.tab_button_style)
+        frame1_3_top.add_item(btn1_3_2, padx=2, pady=2)
         current_run.survival_mode_current_team = config_utils.config_values.get("survival_team", "")
         if custom_utils.is_survival_mode():
             log.info(f"CURRENT SURVIVAL MODE TEAM: {current_run.survival_mode_current_team}")
@@ -206,30 +220,30 @@ class ImageSelectorApp():
 
 
     def create_tab_2(self):
-        frame2_1 = customtkinter.CTkFrame(self.tab2, fg_color="transparent")
+        tab2_flow = ResponsiveFlowFrame(self.tab2)
+        tab2_flow.pack(fill=tk.X, expand=True)
+        self._tab_flows["Icons"] = tab2_flow
+
+        frame2_1 = customtkinter.CTkFrame(tab2_flow, fg_color=("gray86", "gray17"), corner_radius=6)
         frame2_1_top = customtkinter.CTkFrame(frame2_1, fg_color="transparent")
         frame2_1_bottom = customtkinter.CTkFrame(frame2_1, fg_color="transparent")
-        frame2_1.pack(side=tk.LEFT, expand=False, fill=tk.Y, anchor=tk.W)
-        frame2_1_top.pack(side=tk.TOP)
-        frame2_1_bottom.pack(side=tk.BOTTOM)
-        ttk.Separator(self.tab2, orient='vertical').pack(side=tk.LEFT, fill='y', anchor=tk.W)
+        frame2_1_top.pack(side=tk.TOP, padx=4, pady=(4, 0))
+        frame2_1_bottom.pack(side=tk.BOTTOM, pady=(0, 2))
+        tab2_flow.add_item(frame2_1, padx=4, pady=2)
 
-        frame2_2 = customtkinter.CTkFrame(self.tab2, fg_color="transparent")
+        frame2_2 = customtkinter.CTkFrame(tab2_flow, fg_color=("gray86", "gray17"), corner_radius=6)
         frame2_2_top = customtkinter.CTkFrame(frame2_2, fg_color="transparent")
         frame2_2_bottom = customtkinter.CTkFrame(frame2_2, fg_color="transparent")
-        frame2_2.pack(side=tk.LEFT, expand=False, fill=tk.Y, anchor=tk.W)
-        frame2_2_top.pack(side=tk.TOP)
-        frame2_2_bottom.pack(side=tk.BOTTOM)
-        ttk.Separator(self.tab2, orient='vertical').pack(side=tk.LEFT, fill='y', anchor=tk.W)
+        frame2_2_top.pack(side=tk.TOP, padx=4, pady=(4, 0))
+        frame2_2_bottom.pack(side=tk.BOTTOM, pady=(0, 2))
+        tab2_flow.add_item(frame2_2, padx=4, pady=2)
 
-
-        frame2_3 = customtkinter.CTkFrame(self.tab2, fg_color="transparent")
+        frame2_3 = customtkinter.CTkFrame(tab2_flow, fg_color=("gray86", "gray17"), corner_radius=6)
         frame2_3_top = customtkinter.CTkFrame(frame2_3, fg_color="transparent")
         frame2_3_bottom = customtkinter.CTkFrame(frame2_3, fg_color="transparent")
-        frame2_3.pack(side=tk.LEFT, expand=False, fill=tk.Y, anchor=tk.W)
-        frame2_3_top.pack(side=tk.TOP)
-        frame2_3_bottom.pack(side=tk.BOTTOM)
-        ttk.Separator(self.tab2, orient='vertical').pack(side=tk.LEFT, fill='y', anchor=tk.W)        
+        frame2_3_top.pack(side=tk.TOP, padx=4, pady=(4, 0))
+        frame2_3_bottom.pack(side=tk.BOTTOM, pady=(0, 2))
+        tab2_flow.add_item(frame2_3, padx=4, pady=2)
 
 
         #Block 1
@@ -259,13 +273,17 @@ class ImageSelectorApp():
         btn2_3_2.pack(side=tk.LEFT, padx=1)
 
     def create_tab_3(self):
-        frame3_1 = customtkinter.CTkFrame(self.tab3, fg_color="transparent")
-        frame3_1_top = customtkinter.CTkFrame(frame3_1)
-        frame3_1_bottom = customtkinter.CTkFrame(frame3_1)
-        frame3_1.pack(side=tk.LEFT, expand=False, fill=tk.Y, anchor=tk.W)
-        frame3_1_top.pack(side=tk.TOP)
-        frame3_1_bottom.pack(side=tk.BOTTOM)
-        ttk.Separator(self.tab3, orient='vertical').pack(side=tk.LEFT, fill='y', anchor=tk.W)
+        tab3_flow = ResponsiveFlowFrame(self.tab3)
+        tab3_flow.pack(fill=tk.X, expand=True)
+        self._tab_flows["Execute"] = tab3_flow
+
+        frame3_1 = customtkinter.CTkFrame(tab3_flow, fg_color=("gray86", "gray17"), corner_radius=6)
+        frame3_1_top = ResponsiveFlowFrame(frame3_1)
+        frame3_1_bottom = customtkinter.CTkFrame(frame3_1, fg_color="transparent")
+        frame3_1._flow_child = frame3_1_top
+        frame3_1_top.pack(side=tk.TOP, fill=tk.X, padx=4, pady=(4, 0))
+        frame3_1_bottom.pack(side=tk.BOTTOM, pady=(0, 2))
+        tab3_flow.add_item(frame3_1, padx=4, pady=2)
         customtkinter.CTkLabel(frame3_1_bottom, text="Board Capture Mode", bg_color="transparent").pack(side=tk.BOTTOM)
         
         
@@ -273,10 +291,10 @@ class ImageSelectorApp():
         frame3_1_top_2 = customtkinter.CTkFrame(frame3_1_top, fg_color="transparent")
         frame3_1_top_3 = customtkinter.CTkFrame(frame3_1_top, fg_color="transparent")
         frame3_1_top_4 = customtkinter.CTkFrame(frame3_1_top, fg_color="transparent")
-        frame3_1_top_1.pack(side=tk.LEFT)
-        frame3_1_top_2.pack(side=tk.LEFT)
-        frame3_1_top_3.pack(side=tk.LEFT)
-        frame3_1_top_4.pack(side=tk.LEFT)
+        frame3_1_top.add_item(frame3_1_top_1, padx=2, pady=2)
+        frame3_1_top.add_item(frame3_1_top_2, padx=2, pady=2)
+        frame3_1_top.add_item(frame3_1_top_3, padx=2, pady=2)
+        frame3_1_top.add_item(frame3_1_top_4, padx=2, pady=2)
 
         self.frame3_1_top_1_1_var_control_loop = tk.BooleanVar(value=False)      
         self.frame3_1_top_1_2_var_control_barrier = tk.BooleanVar(value=config_utils.config_values.get("has_barrier")) 
@@ -363,58 +381,59 @@ class ImageSelectorApp():
         self.widget_dict["switch_extra_debug"] = self.frame3_1_top_4_3_switch
         self.widget_dict["switch_sleep_machine"] = self.frame3_1_top_4_4_switch
 
-        frame3_2 = customtkinter.CTkFrame(self.tab3, fg_color="transparent")
-        frame3_2_top = customtkinter.CTkFrame(frame3_2, fg_color="transparent")
+        frame3_2 = customtkinter.CTkFrame(tab3_flow, fg_color=("gray86", "gray17"), corner_radius=6)
+        frame3_2_top = ResponsiveFlowFrame(frame3_2)
         frame3_2_bottom = customtkinter.CTkFrame(frame3_2, fg_color="transparent")
-        frame3_2.pack(side=tk.LEFT, expand=False, fill=tk.Y, anchor=tk.W)
-        frame3_2_top.pack(side=tk.TOP)
-        frame3_2_bottom.pack(side=tk.BOTTOM)
-        ttk.Separator(self.tab3, orient='vertical').pack(side=tk.LEFT, fill='y', anchor=tk.W)
-        customtkinter.CTkLabel(frame3_2_bottom, text="").pack(side=tk.BOTTOM)
+        frame3_2._flow_child = frame3_2_top
+        frame3_2_top.pack(side=tk.TOP, fill=tk.X, padx=4, pady=(4, 0))
+        frame3_2_bottom.pack(side=tk.BOTTOM, pady=(0, 2))
+        tab3_flow.add_item(frame3_2, padx=4, pady=2)
+        customtkinter.CTkLabel(frame3_2_bottom, text="Actions").pack(side=tk.BOTTOM)
 
         btn3_2_1 = customtkinter.CTkButton(frame3_2_top, text="Execute", command=lambda: self.execute_board_analysis_threaded(source="manual"), image=self.get_icon("play-circle"), **self.tab_button_style)
         CTkToolTip(btn3_2_1, delay=0.5, message="Execute (F2)")
-        btn3_2_1.pack(side=tk.LEFT)
+        frame3_2_top.add_item(btn3_2_1, padx=2, pady=2)
         # keyboard.add_hotkey('f2', lambda: self.execute_board_analysis_threaded(source="manual")) #type: ignore
         
         btn3_2_2 = customtkinter.CTkButton(frame3_2_top, text="Load Team", command=self.load_team, image=self.get_icon("cloud-download-alt"), **self.tab_button_style)
         CTkToolTip(btn3_2_2, delay=0.5, message="Load Team From Shuffle Move Config File")
-        btn3_2_2.pack(side=tk.LEFT, padx=1)
-        customtkinter.CTkButton(frame3_2_top, text="Current Board", command=self.show_current_board_with_matches, image=self.get_icon("search"), **self.tab_button_style).pack(side=tk.LEFT)
+        frame3_2_top.add_item(btn3_2_2, padx=2, pady=2)
+        btn3_2_3 = customtkinter.CTkButton(frame3_2_top, text="Current Board", command=self.show_current_board_with_matches, image=self.get_icon("search"), **self.tab_button_style)
+        frame3_2_top.add_item(btn3_2_3, padx=2, pady=2)
         self.hide_button = customtkinter.CTkButton(frame3_2_top, text="Hide Main App", command=lambda: self.show_or_hide_widget(self.appview), image=self.get_icon("eye-slash-regular"), **self.tab_button_style)
-        self.hide_button.pack(side=tk.LEFT)
+        frame3_2_top.add_item(self.hide_button, padx=2, pady=2)
 
         self.remove_button = customtkinter.CTkButton(frame3_2_top, text="Clear Current Team", command=lambda: self.remove_all_icons(), image=self.get_icon("trash-alt"), **self.tab_button_style)
-        self.remove_button.pack(side=tk.LEFT)
+        frame3_2_top.add_item(self.remove_button, padx=2, pady=2)
 
-        customtkinter.CTkButton(frame3_2_top, text="Reorder Team", command=lambda: self.reorder_icons(), image=self.get_icon("trash-alt"), **self.tab_button_style).pack(side=tk.LEFT)
+        btn3_2_6 = customtkinter.CTkButton(frame3_2_top, text="Reorder Team", command=lambda: self.reorder_icons(), image=self.get_icon("trash-alt"), **self.tab_button_style)
+        frame3_2_top.add_item(btn3_2_6, padx=2, pady=2)
 
-        frame3_3 = customtkinter.CTkFrame(self.tab3, fg_color="transparent")
-        frame3_3_top = customtkinter.CTkFrame(frame3_3, fg_color="transparent")
+        frame3_3 = customtkinter.CTkFrame(tab3_flow, fg_color=("gray86", "gray17"), corner_radius=6)
+        frame3_3_top = ResponsiveFlowFrame(frame3_3)
         frame3_3_bottom = customtkinter.CTkFrame(frame3_3, fg_color="transparent")
-        frame3_3.pack(side=tk.LEFT, expand=False, fill=tk.Y, anchor=tk.W)
-        frame3_3_top.pack(side=tk.TOP)
-        frame3_3_bottom.pack(side=tk.BOTTOM)
-        ttk.Separator(self.tab3, orient='vertical').pack(side=tk.LEFT, fill='y', anchor=tk.W)
+        frame3_3._flow_child = frame3_3_top
+        frame3_3_top.pack(side=tk.TOP, fill=tk.X, padx=4, pady=(4, 0))
+        frame3_3_bottom.pack(side=tk.BOTTOM, pady=(0, 2))
+        tab3_flow.add_item(frame3_3, padx=4, pady=2)
         
         customtkinter.CTkLabel(frame3_3_bottom, text="Register Icons").pack(side=tk.BOTTOM)
         btn3_3_1 = customtkinter.CTkButton(frame3_3_top, text="Icon", command=lambda: self.register_new_icon(), image=self.get_icon("plus"), **self.tab_button_style)
         CTkToolTip(btn3_3_1, delay=0.5, message="Register a New Icon")
-        btn3_3_1.pack(side=tk.LEFT, padx=1)
+        frame3_3_top.add_item(btn3_3_1, padx=2, pady=2)
         btn3_3_2 = customtkinter.CTkButton(frame3_3_top, text="Barrier", command=lambda: self.open_create_register_screen(folder="barrier"), image=self.get_icon("plus"), **self.tab_button_style)
         CTkToolTip(btn3_3_2, delay=0.5, message="Create or Substitute the Barrier Icon")
-        btn3_3_2.pack(side=tk.LEFT, padx=1)
+        frame3_3_top.add_item(btn3_3_2, padx=2, pady=2)
         btn3_3_3 = customtkinter.CTkButton(frame3_3_top, text="Extra", command=lambda: self.open_create_register_screen(folder="extra"), image=self.get_icon("plus"), **self.tab_button_style)
         CTkToolTip(btn3_3_3, delay=0.5, message="Insert a new Extra Icon")
-        btn3_3_3.pack(side=tk.LEFT, padx=1)
+        frame3_3_top.add_item(btn3_3_3, padx=2, pady=2)
 
-        frame3_4 = customtkinter.CTkFrame(self.tab3, fg_color="transparent")
+        frame3_4 = customtkinter.CTkFrame(tab3_flow, fg_color=("gray86", "gray17"), corner_radius=6)
         frame3_4_top = customtkinter.CTkFrame(frame3_4, fg_color="transparent")
         frame3_4_bottom = customtkinter.CTkFrame(frame3_4, fg_color="transparent")
-        frame3_4.pack(side=tk.LEFT, expand=False, fill=tk.Y, anchor=tk.W)
-        frame3_4_top.pack(side=tk.TOP)
-        frame3_4_bottom.pack(side=tk.BOTTOM)
-        ttk.Separator(self.tab1, orient='vertical').pack(side=tk.LEFT, fill='y', anchor=tk.W)
+        frame3_4_top.pack(side=tk.TOP, padx=4, pady=(4, 0))
+        frame3_4_bottom.pack(side=tk.BOTTOM, pady=(0, 2))
+        tab3_flow.add_item(frame3_4, padx=4, pady=2)
         
         customtkinter.CTkLabel(frame3_4_bottom, text="Execution").pack(side=tk.BOTTOM, anchor=tk.S)
         
@@ -433,13 +452,17 @@ class ImageSelectorApp():
         customtkinter.CTkLabel(frame3_4_top_2, text="Move Strategy").pack(side=tk.BOTTOM, anchor=tk.E)
 
     def create_tab_4(self):
-        frame4_1 = customtkinter.CTkFrame(self.tab4, fg_color="transparent")
-        frame4_1_top = customtkinter.CTkFrame(frame4_1)
-        frame4_1_bottom = customtkinter.CTkFrame(frame4_1)
-        frame4_1.pack(side=tk.LEFT, expand=False, fill=tk.Y, anchor=tk.W)
-        frame4_1_top.pack(side=tk.TOP)
-        frame4_1_bottom.pack(side=tk.BOTTOM)
-        ttk.Separator(self.tab4, orient='vertical').pack(side=tk.LEFT, fill='y', anchor=tk.W)
+        tab4_flow = ResponsiveFlowFrame(self.tab4)
+        tab4_flow.pack(fill=tk.X, expand=True)
+        self._tab_flows["Extra"] = tab4_flow
+
+        frame4_1 = customtkinter.CTkFrame(tab4_flow, fg_color=("gray86", "gray17"), corner_radius=6)
+        frame4_1_top = ResponsiveFlowFrame(frame4_1)
+        frame4_1_bottom = customtkinter.CTkFrame(frame4_1, fg_color="transparent")
+        frame4_1._flow_child = frame4_1_top
+        frame4_1_top.pack(side=tk.TOP, fill=tk.X, padx=4, pady=(4, 0))
+        frame4_1_bottom.pack(side=tk.BOTTOM, pady=(0, 2))
+        tab4_flow.add_item(frame4_1, padx=4, pady=2)
         customtkinter.CTkLabel(frame4_1_bottom, text="Board Capture Mode", bg_color="transparent").pack(side=tk.BOTTOM)
         
         
@@ -447,10 +470,10 @@ class ImageSelectorApp():
         frame4_1_top_2 = customtkinter.CTkFrame(frame4_1_top, fg_color="transparent")
         frame4_1_top_3 = customtkinter.CTkFrame(frame4_1_top, fg_color="transparent")
         frame4_1_top_4 = customtkinter.CTkFrame(frame4_1_top, fg_color="transparent")
-        frame4_1_top_1.pack(side=tk.LEFT)
-        frame4_1_top_2.pack(side=tk.LEFT)
-        frame4_1_top_3.pack(side=tk.LEFT)
-        frame4_1_top_4.pack(side=tk.LEFT)
+        frame4_1_top.add_item(frame4_1_top_1, padx=2, pady=2)
+        frame4_1_top.add_item(frame4_1_top_2, padx=2, pady=2)
+        frame4_1_top.add_item(frame4_1_top_3, padx=2, pady=2)
+        frame4_1_top.add_item(frame4_1_top_4, padx=2, pady=2)
 
         self.frame4_1_top_1_1_var = tk.BooleanVar(value=config_utils.config_values.get("greatball")) 
         self.frame4_1_top_1_2_var = tk.BooleanVar(value=config_utils.config_values.get("stage_pause"))
@@ -563,8 +586,8 @@ class ImageSelectorApp():
         self.image_preview.grid(row=1, column=3, padx=5, pady=5, sticky='w')
 
     def create_bottom_message(self):
-        self.log_widget = customtkinter.CTkTextbox(self.master, font=("Courier", 13), width=500, height=500)
-        self.log_widget.pack(side=tk.BOTTOM, fill=tk.X)
+        self.log_widget = customtkinter.CTkTextbox(self.master, font=("Courier", 13), width=200, height=150)
+        self.log_widget.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
         
         log_handler = log_utils.LogHandler(self.log_widget, max_lines=150)
         log_utils.insert_new_handler(log_handler)
@@ -574,6 +597,7 @@ class ImageSelectorApp():
         self.scrollable_frame.pack(side=tk.TOP, fill=tk.X)
 
     def configure_initial_geometry(self):
+        self.master.minsize(360, 300)
         self.master.update()
         self.master.state('zoomed')
         self.check_current_position()

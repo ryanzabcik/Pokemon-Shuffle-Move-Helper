@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 log = log_utils.get_logger()
 
 
-class BoardIconSelector(tk.Toplevel):
+class BoardIconSelector(customtkinter.CTkToplevel):
      
     def __init__(self, master = None, root: "ImageSelectorApp" = None, folder = ""): #type: ignore
          
@@ -26,29 +26,175 @@ class BoardIconSelector(tk.Toplevel):
         self.root = root
         self.folder = folder
         self.selected_image = None
+        self.zoom = 1.0
+        self.fit_zoom = 1.0
+        self.min_zoom = 0.2
+        self.max_zoom = 3.0
+        self.cell_pad = 6
+        self.num_columns = 6
+        self.original_images = []
+        self.cell_labels = []
         self.image_widgets = [] #type: ignore
         self.create_widgets()
+        self.after(100, self.focus)
+
+    def _get_scaling(self):
+        if hasattr(self, "board_frame") and hasattr(self.board_frame, "_get_widget_scaling"):
+            return self.board_frame._get_widget_scaling()
+        if hasattr(self, "_get_window_scaling"):
+            return self._get_window_scaling()
+        return 1.0
+
+    def _canvas_bg_color(self):
+        mode = customtkinter.get_appearance_mode()
+        fg = customtkinter.ThemeManager.theme["CTkFrame"]["fg_color"]
+        return fg[1] if mode == "Dark" else fg[0]
+
+    def _compute_fit_zoom(self, avail_w_px=None, avail_h_px=None):
+        if not self.original_images:
+            return 1.0
+        scaling = self._get_scaling()
+        cell_w = max(img.width for img in self.original_images)
+        cell_h = max(img.height for img in self.original_images)
+        num_rows = (len(self.original_images) + self.num_columns - 1) // self.num_columns
+
+        if avail_w_px is None or avail_h_px is None:
+            screen_w = self.winfo_screenwidth()
+            screen_h = self.winfo_screenheight() - custom_utils.get_taskbar_size()
+            avail_w_px = screen_w * 0.88 - 30
+            avail_h_px = screen_h * 0.85 - 90
+
+        pad_px = 2 * self.cell_pad * scaling
+        fit_w = (avail_w_px / self.num_columns - pad_px) / max(1.0, cell_w * scaling)
+        fit_h = (avail_h_px / max(1, num_rows) - pad_px) / max(1.0, cell_h * scaling)
+        return max(self.min_zoom, min(1.0, fit_w, fit_h))
 
     def create_widgets(self):
-        num_columns = 6
-        row_index = 0
-        col_index = 0
+        toolbar = customtkinter.CTkFrame(self, fg_color="transparent")
+        toolbar.grid(row=0, column=0, columnspan=2, sticky="ew", padx=8, pady=(6, 2))
+
+        customtkinter.CTkLabel(toolbar, text="Zoom:").pack(side=tk.LEFT, padx=(0, 6))
+        customtkinter.CTkButton(toolbar, text="-", width=32, command=self.zoom_out).pack(side=tk.LEFT, padx=2)
+        self.zoom_label = customtkinter.CTkLabel(toolbar, text="100%", width=48)
+        self.zoom_label.pack(side=tk.LEFT, padx=4)
+        customtkinter.CTkButton(toolbar, text="+", width=32, command=self.zoom_in).pack(side=tk.LEFT, padx=2)
+        customtkinter.CTkButton(toolbar, text="Fit", width=50, command=self.zoom_to_fit).pack(side=tk.LEFT, padx=(8, 2))
+        customtkinter.CTkButton(toolbar, text="100%", width=55, command=lambda: self.set_zoom(1.0)).pack(side=tk.LEFT, padx=2)
+
+        self.canvas = tk.Canvas(self, highlightthickness=0, bg=self._canvas_bg_color())
+        v_scroll = customtkinter.CTkScrollbar(self, orientation="vertical", command=self.canvas.yview)
+        h_scroll = customtkinter.CTkScrollbar(self, orientation="horizontal", command=self.canvas.xview)
+        self.canvas.configure(yscrollcommand=v_scroll.set, xscrollcommand=h_scroll.set)
+
+        self.board_frame = customtkinter.CTkFrame(self.canvas, fg_color="transparent")
+        self.board_frame.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        )
+        self.canvas.create_window((0, 0), window=self.board_frame, anchor="nw")
+
+        self.canvas.grid(row=1, column=0, sticky="nsew")
+        v_scroll.grid(row=1, column=1, sticky="ns")
+        h_scroll.grid(row=2, column=0, sticky="ew")
+
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
 
         icons_list = match_icons.make_cell_list()
-        for image in icons_list:
-            image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
-            tk_image = customtkinter.CTkImage(image, size=image.size)
+        for cv_img in icons_list:
+            pil_img = Image.fromarray(cv2.cvtColor(cv_img, cv2.COLOR_RGB2BGR))
+            self.original_images.append(pil_img)
+
+        self.fit_zoom = self._compute_fit_zoom()
+        self.zoom = self.fit_zoom
+        self.zoom_label.configure(text=f"{int(round(self.zoom * 100))}%")
+
+        row_index = 0
+        col_index = 0
+        for pil_img in self.original_images:
+            scaled_size = (
+                max(1, int(round(pil_img.width * self.zoom))),
+                max(1, int(round(pil_img.height * self.zoom))),
+            )
+            tk_image = customtkinter.CTkImage(pil_img, size=scaled_size)
             self.image_widgets.append(tk_image)
 
-            label = customtkinter.CTkLabel(self, image=tk_image, text="", cursor="hand2")
-            label.image = tk_image  # Keep a reference to avoid garbage collection
-            label.bind("<Button-1>", lambda event, custom_image=image: self.on_image_click(custom_image))
-            label.grid(row=row_index, column=col_index, padx=10, pady=10)
+            label = customtkinter.CTkLabel(self.board_frame, image=tk_image, text="", cursor="hand2")
+            label.image = tk_image
+            label.bind("<Button-1>", lambda event, custom_image=pil_img: self.on_image_click(custom_image))
+            label.grid(row=row_index, column=col_index, padx=self.cell_pad, pady=self.cell_pad)
+            self.cell_labels.append(label)
 
             col_index += 1
-            if col_index >= num_columns:
+            if col_index >= self.num_columns:
                 col_index = 0
                 row_index += 1
+
+        self.bind("<MouseWheel>", self._on_mousewheel)
+        self.bind("<Shift-MouseWheel>", self._on_shift_mousewheel)
+        self.bind("<Control-plus>", lambda e: self.zoom_in())
+        self.bind("<Control-equal>", lambda e: self.zoom_in())
+        self.bind("<Control-minus>", lambda e: self.zoom_out())
+
+        self._configure_initial_geometry()
+
+    def _configure_initial_geometry(self):
+        self.update_idletasks()
+        scaling = self._get_scaling()
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight() - custom_utils.get_taskbar_size()
+
+        req_w = self.board_frame.winfo_reqwidth() + 30
+        req_h = self.board_frame.winfo_reqheight() + 70
+        win_w = min(req_w, int(screen_w * 0.92))
+        win_h = min(req_h, int(screen_h * 0.90))
+        x = max(0, (screen_w - win_w) // 2)
+        y = max(0, (screen_h - win_h) // 2)
+        self.geometry(f"{int(win_w / scaling)}x{int(win_h / scaling)}+{x}+{y}")
+
+    def _on_mousewheel(self, event):
+        if event.state & 0x4:  # Control key held
+            if event.delta > 0:
+                self.zoom_in()
+            elif event.delta < 0:
+                self.zoom_out()
+        else:
+            self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    def _on_shift_mousewheel(self, event):
+        self.canvas.xview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    def zoom_in(self):
+        self.set_zoom(self.zoom * 1.15)
+
+    def zoom_out(self):
+        self.set_zoom(self.zoom / 1.15)
+
+    def zoom_to_fit(self):
+        canvas_w = self.canvas.winfo_width()
+        canvas_h = self.canvas.winfo_height()
+        if canvas_w > 50 and canvas_h > 50:
+            self.fit_zoom = self._compute_fit_zoom(canvas_w - 8, canvas_h - 8)
+        else:
+            self.fit_zoom = self._compute_fit_zoom()
+        self.set_zoom(self.fit_zoom)
+
+    def set_zoom(self, new_zoom):
+        self.zoom = max(self.min_zoom, min(self.max_zoom, new_zoom))
+        self.zoom_label.configure(text=f"{int(round(self.zoom * 100))}%")
+        new_widgets = []
+        for pil_img, label in zip(self.original_images, self.cell_labels):
+            scaled_size = (
+                max(1, int(round(pil_img.width * self.zoom))),
+                max(1, int(round(pil_img.height * self.zoom))),
+            )
+            tk_image = customtkinter.CTkImage(pil_img, size=scaled_size)
+            label.configure(image=tk_image)
+            label.image = tk_image
+            new_widgets.append(tk_image)
+        self.image_widgets = new_widgets
+        self.board_frame.update_idletasks()
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
     
     def on_image_click(self, image):
         self.selected_image = image
