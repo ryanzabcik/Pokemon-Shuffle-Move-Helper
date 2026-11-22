@@ -166,7 +166,6 @@ class TeamLoader(tk.Toplevel):
                 self.root.disable_switch("survival_mode")
                 self.root.disable_switch("mega_boosted_score")
                 self.root.disable_switch("fast_swipe")
-                self.root.activate_switch("expand_mega")
 
             if current_run.current_stage == constants.MEOWTH_COIN_MANIA:
                 current_run.current_stage = "SP_084"
