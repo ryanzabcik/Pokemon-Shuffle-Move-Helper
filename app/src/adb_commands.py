@@ -6,10 +6,14 @@ import time
 
 log = log_utils.get_logger()
 _active_display_id = None
+_input_display_id = None
 
 def update_adb_connection(reconfigure_screen):
+    global _active_display_id, _input_display_id
     log.info("Starting update_adb_connection")
     current_run.adb_device = None
+    _active_display_id = None
+    _input_display_id = None
     # Initialize the ADB client
     adb = adbutils.AdbClient(host="127.0.0.1", port=5037)
 
@@ -61,14 +65,50 @@ def update_adb_connection(reconfigure_screen):
     return
 
 
+def _get_input_display_id():
+    global _input_display_id
+    if _input_display_id is not None:
+        return _input_display_id
+    try:
+        output = current_run.adb_device.shell("dumpsys display") #type: ignore
+        target_res = screen_utils.get_screen().resolution
+        blocks = re.split(r"(?=Display\s+\d+:|\bmDisplayId=\d+)", output)
+        displays = []
+        for blk in blocks:
+            id_m = re.search(r"mDisplayId=(\d+)", blk)
+            if not id_m:
+                continue
+            did = int(id_m.group(1))
+            state_m = re.search(r"mState=(\w+)", blk)
+            state = state_m.group(1) if state_m else ""
+            res_m = re.search(r"(\d{3,4})\s*x\s*(\d{3,4})", blk)
+            res = f"{res_m.group(1)}x{res_m.group(2)}" if res_m else ""
+            displays.append((did, state, res))
+        if displays:
+            log.info(f"ADB displays (id, state, res): {displays} (target_res={target_res})")
+            for did, state, res in displays:
+                if state == "ON" and target_res and res == target_res:
+                    _input_display_id = did
+                    return _input_display_id
+            for did, state, _ in displays:
+                if state == "ON":
+                    _input_display_id = did
+                    return _input_display_id
+    except Exception as ex:
+        log.debug(f"Failed to query dumpsys display: {ex}")
+    return _active_display_id
+
+
 def adb_run_swipe(from_x, from_y, to_x, to_y, delay, source, skip_on_error=False, skip_extra_debug=False):
     try:
         if source == "loop" and not current_run.is_loop_active:
             log.info("Skipping Swipe Because Loop Was Deactivated")
             return False
-        display_arg = f"-d {_active_display_id} " if _active_display_id is not None else ""
-        log.debug(f"Swiping at: {from_x} {from_y} {to_x} {to_y} {delay} (display_id={_active_display_id})")
-        output = current_run.adb_device.shell(f"input {display_arg}swipe {from_x} {from_y} {to_x} {to_y} {delay}") #type: ignore
+        input_did = _get_input_display_id()
+        display_arg = f"-d {input_did} " if input_did is not None else ""
+        cmd = f"input {display_arg}swipe {from_x} {from_y} {to_x} {to_y} {delay}"
+        log.debug(f"Swiping at: {from_x} {from_y} {to_x} {to_y} {delay} (cmd='{cmd}')")
+        output = current_run.adb_device.shell(cmd) #type: ignore
         if output and str(output).strip():
             log.warning(f"adb_run_swipe shell output: {str(output).strip()}")
             return False
@@ -88,9 +128,11 @@ def adb_run_tap(x ,y, source, skip_on_error=False, skip_extra_debug=False):
         if source == "loop" and not current_run.is_loop_active:
             log.info("Skipping Tap Because Loop Was Deactivated")
             return
-        display_arg = f"-d {_active_display_id} " if _active_display_id is not None else ""
-        log.debug(f"Tapping at: {x}, {y} (display_id={_active_display_id})")
-        output = current_run.adb_device.shell(f"input {display_arg}tap {x} {y}") #type: ignore
+        input_did = _get_input_display_id()
+        display_arg = f"-d {input_did} " if input_did is not None else ""
+        cmd = f"input {display_arg}tap {x} {y}"
+        log.debug(f"Tapping at: {x}, {y} (cmd='{cmd}')")
+        output = current_run.adb_device.shell(cmd) #type: ignore
         if output and str(output).strip():
             log.warning(f"adb_run_tap shell output: {str(output).strip()}")
         if not skip_extra_debug and custom_utils.is_extra_debug_active():
@@ -122,7 +164,7 @@ def _get_display_indices():
 
 
 def adb_run_screenshot(skip_on_error=False):
-    global _active_display_id
+    global _active_display_id, _input_display_id
     try:
         img = current_run.adb_device.screenshot(display_id=_active_display_id) #type: ignore
         if _is_black_image(img):
@@ -132,6 +174,7 @@ def adb_run_screenshot(skip_on_error=False):
                 candidate = current_run.adb_device.screenshot(display_id=did) #type: ignore
                 if not _is_black_image(candidate):
                     _active_display_id = did
+                    _input_display_id = None
                     log.info(f"Switched ADB screenshot display_id index to {did}")
                     return candidate
         return img
