@@ -30,7 +30,7 @@ custom_utils.verify_shuffle_file(GRADING_MODES_PATH)
 def get_current_stage_and_team(expand_megas=False):
 
     stage_name = "NONE"
-    with open(BOARD_PATH, 'r') as file:
+    with open(BOARD_PATH, 'r', encoding="utf-8") as file:
         lines = file.readlines()
     for line in lines:
         if "STAGE" in line:
@@ -42,7 +42,7 @@ def get_team_from_stage_name(stage_name, expand_megas=False):
     if stage_name == constants.SURVIVAL_MODE:
         return get_team_from_config_file_line(constants.SURVIVAL_TEAM_STRING, expand_megas)
     current_stage_string = f"TEAM {stage_name}"
-    with open(TEAMS_DATA_PATH, 'r') as file:
+    with open(TEAMS_DATA_PATH, 'r', encoding="utf-8") as file:
         lines = file.readlines()
     for i, line in enumerate(lines):
         if line.lower().startswith(current_stage_string.lower()):
@@ -135,7 +135,7 @@ def get_stage_shuffle_move_id(stage_name, get_stage_name=False):
 
 def load_stages_dict():
     stage_dict = {}
-    with open(STAGES_PATH, 'r') as file:
+    with open(STAGES_PATH, 'r', encoding="utf-8") as file:
         for line in file:
             if line.startswith('STAGE'):
                 words = line.strip().split()
@@ -166,14 +166,14 @@ def process_pokemon_names_list(original_names_list):
     return names_list, barrier_list, mega_name
 
 def update_current_stage(current_stage):
-    with open(BOARD_PATH, 'r') as file:
+    with open(BOARD_PATH, 'r', encoding="utf-8") as file:
         lines = file.readlines()
     for i, line in enumerate(lines):
         if line.startswith("STAGE"):
             # Replace the line
             lines[i] = f"STAGE {current_stage}\n"
             break
-    with open(BOARD_PATH, 'w') as file:
+    with open(BOARD_PATH, 'w', encoding="utf-8") as file:
         file.writelines(lines)
     return
 
@@ -187,7 +187,7 @@ def update_preferences(current_score=0, moves_left=5, escalation_stage_number=No
         preferences["INTEGER ESCALATION_LEVEL"] = escalation_stage_number
 
     # Read existing lines from the file
-    with open(PREFERENCES_PATH, 'r') as file:
+    with open(PREFERENCES_PATH, 'r', encoding="utf-8") as file:
         lines = file.readlines()
 
     # Flag to check if any lines were updated
@@ -215,7 +215,7 @@ def update_preferences(current_score=0, moves_left=5, escalation_stage_number=No
         lines = [f"{key} {value}\n" for key, value in preferences.items()] + lines
 
     # Write the updated lines back to the file
-    with open(PREFERENCES_PATH, 'w') as file:
+    with open(PREFERENCES_PATH, 'w', encoding="utf-8") as file:
         file.writelines(lines)
 
 def update_board_file(names_list, barrier_list, mega_activated, stage):
@@ -244,7 +244,7 @@ ROW_6 {",".join(names_list[30:36])}
 FROW_6 {",".join(barrier_list[30:36])}
 CROW_6 {CROW}
 """
-    with open(BOARD_PATH, 'w') as file:
+    with open(BOARD_PATH, 'w', encoding="utf-8") as file:
         file.write(board_file_content)
 
 def update_teams_file_with_pokemon_list(pokemon_list, stage_name):
@@ -260,7 +260,7 @@ def update_teams_file(names_list, mega_name, extra_supports_list, stage):
 
 def update_teams_file_with_move_string(move_string, stage_name):
     team_stage_string = f"TEAM {stage_name} "
-    with open(TEAMS_DATA_PATH, 'r') as file:
+    with open(TEAMS_DATA_PATH, 'r', encoding="utf-8") as file:
         lines = file.readlines()
 
     found = False
@@ -276,7 +276,7 @@ def update_teams_file_with_move_string(move_string, stage_name):
             lines[-1] += "\n"
         lines.append(move_string)
     # Write the modified content back to the file
-    with open(TEAMS_DATA_PATH, 'w') as file:
+    with open(TEAMS_DATA_PATH, 'w', encoding="utf-8") as file:
         file.writelines(lines)
     if custom_utils.custom_utils.is_survival_mode() and stage_name != constants.SURVIVAL_MODE:
         new_stage_name = constants.SURVIVAL_MODE
@@ -302,7 +302,7 @@ def update_gradingModes_file(source, mega_activated, current_board):
     prefix_to_replace = f"STRING CURRENT_MODE"
     new_line = f"STRING CURRENT_MODE {strategy}\n"
     has_modifications = False
-    with open(GRADING_MODES_PATH, 'r') as file:
+    with open(GRADING_MODES_PATH, 'r', encoding="utf-8") as file:
         lines = file.readlines()
 
     for i, line in enumerate(lines):
@@ -311,6 +311,6 @@ def update_gradingModes_file(source, mega_activated, current_board):
                 lines[i] = new_line
                 has_modifications = True
     if has_modifications:
-        with open(GRADING_MODES_PATH, 'w') as file:
+        with open(GRADING_MODES_PATH, 'w', encoding="utf-8") as file:
             file.writelines(lines)
     return

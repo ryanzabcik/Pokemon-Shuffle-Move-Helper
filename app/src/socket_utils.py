@@ -12,7 +12,7 @@ custom_utils.verify_shuffle_file(PREFERENCES_PATH)
 def load_socket_port():
     global socket_port
     try:
-        with open(PREFERENCES_PATH, "r") as file:
+        with open(PREFERENCES_PATH, "r", encoding="utf-8") as file:
             lines = file.readlines()
         
         for line in lines:

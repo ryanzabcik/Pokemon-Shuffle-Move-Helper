@@ -36,7 +36,7 @@ class TeamLoader(tk.Toplevel):
 
 
         # Read the file and parse each line into a TeamData
-        with open(Path.joinpath(Path.home(), "Shuffle-Move", "config", "teamsData.txt"), "r") as file:
+        with open(Path.joinpath(Path.home(), "Shuffle-Move", "config", "teamsData.txt"), "r", encoding="utf-8") as file:
             lines = file.readlines()
 
         self.all_teams: list[TeamData] = []

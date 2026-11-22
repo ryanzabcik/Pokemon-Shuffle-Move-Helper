@@ -71,10 +71,13 @@ def resize_image_to_fit(image, screen_width, screen_height):
 
 def resize_and_save_np_image(image_path, np_image, image_size):
     resized = resize_cv2_image(np_image, image_size)
-    if isinstance(image_path, str):
-        cv2.imwrite(image_path, resized)
-    else:
-        cv2.imwrite(image_path.as_posix(), resized)
+    if resized is None:
+        return
+    target_path = Path(image_path)
+    ext = target_path.suffix or ".png"
+    success, encoded = cv2.imencode(ext, resized)
+    if success:
+        encoded.tofile(target_path.as_posix())
 
 
 
@@ -607,7 +610,7 @@ def find_slot_to_mega(current_board: Board):
     return formatted_result
 
 def load_file_as_list(file_path):
-    with open(file_path, 'r') as file:
+    with open(file_path, 'r', encoding="utf-8") as file:
         lines = file.readlines()
         lines = [line.strip() for line in lines]
     return lines
