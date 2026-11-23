@@ -107,16 +107,33 @@ class ExecutionVariable:
         self.remaining_moves = ""
         if not keep_id:
             self.id = None
-        
+            self.clear_fake_matches()
+
+    def clear_fake_matches(self):
+        self.fake_matches = []
+        self.current_fake_match_index = -1
+
     def load_fake_matchs(self, original_icons, keep_current_stage_add=False):
         log.info("RUNNING THE LOAD_FAKE_MATCHS LOGIC")
+        excluded_names = set(constants.NON_POKEMON_NAMES_LIST)
+        for name in original_icons:
+            base_name = name
+            if base_name.startswith(constants.BARRIER_PREFIX):
+                base_name = base_name[len(constants.BARRIER_PREFIX):]
+            if base_name.startswith(constants.MEGA_PREFIX):
+                base_name = base_name[len(constants.MEGA_PREFIX):]
+            excluded_names.add(name)
+            excluded_names.add(base_name)
+
         for image_path in Path(constants.IMAGES_PATH).glob("*.png"):
-            if image_path.stem not in original_icons:
-                icon = classes.Icon(image_path.stem, image_path, False, True)
-                match = classes.Match(None, None, icon)
-                self.fake_matches.append(match)
-                if len(self.fake_matches) > 15:
-                    return
+            stem = image_path.stem
+            if stem.startswith("_") or stem.startswith(constants.MEGA_PREFIX) or stem in excluded_names:
+                continue
+            icon = classes.Icon(stem, image_path, False, True)
+            match = classes.Match(None, None, icon)
+            self.fake_matches.append(match)
+            if len(self.fake_matches) > 15:
+                return
         
     def get_next_timed_fake_icon(self):
         if len(self.fake_matches) == 0:

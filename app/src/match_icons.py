@@ -46,7 +46,7 @@ def load_icon_classes(values_to_execute: list[Pokemon], has_barriers):
                 new_icon = Icon(pokemon.name, pokemon.path, True, pokemon.stage_added)
                 icons_list.append(new_icon)
                 loaded_icons_cache[new_icon.name] = new_icon
-    if custom_utils.is_survival_mode():
+    if custom_utils.is_survival_mode() and len(current_run.fake_matches) == 0:
         for pokemon in values_to_execute:
             if pokemon.stage_added:
                 icon = Icon(pokemon.name, pokemon.path, False, True)
@@ -383,8 +383,7 @@ def mask_already_existant_matches(match_list: List[Match], icons_list) -> List[M
                 if len(current_run.fake_matches) > 20:
                     break
     elif len(current_run.fake_matches) == 0:
-        current_run.has_modifications = True
-        current_run.load_fake_matchs([icon.name for icon in icons_list if icon.stage_added == False])
+        current_run.load_fake_matchs([icon.name for icon in icons_list])
     match_list = custom_utils.replace_all_3_matches_indices_and_air(match_list, current_run.metal_match, current_run)
     return match_list
 

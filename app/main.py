@@ -678,6 +678,7 @@ class ImageSelectorApp():
         if any([value for value in self.get_selected_images_widgets_list() if value[0].master.name == selected_file]):
             return
 
+        current_run.clear_fake_matches()
         current_run.has_modifications = True
 
         # Display in the selected images panel
@@ -793,6 +794,7 @@ class ImageSelectorApp():
         CTkToolTip(selected_image_label, delay=0.5, message="", image=extra_photo)
 
     def destroy_selected_pokemons(self):
+        self.clear_icons_cache()
         for widget in self.scrollable_frame.winfo_children():
             try:
                 widget.destroy()
@@ -833,7 +835,7 @@ class ImageSelectorApp():
 
     def clear_icons_cache(self):
         match_icons.loaded_icons_cache = {}
-        current_run.fake_matches = []
+        current_run.clear_fake_matches()
         current_run.has_modifications = True
 
     def get_selected_images_widgets_list(self):
@@ -1124,6 +1126,7 @@ class ImageSelectorApp():
             pass  # Handle special keys if necessary
     
     def remove_all_icons(self):
+        self.clear_icons_cache()
         for widget in self.get_selected_images_widgets_list():
             widget[0].master.destroy()
         self.insert_image_widget(f"_Empty.png")
